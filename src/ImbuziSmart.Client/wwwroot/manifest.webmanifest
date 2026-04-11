@@ -1,13 +1,19 @@
 {
   "name": "iMbuzi Smart",
   "short_name": "iMbuzi",
-  "description": "Offline-first livestock management for goat farmers",
+  "description": "iMbuzi Smart - Offline-first livestock management for goat farmers",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#1a1a2e",
-  "theme_color": "#e94560",
+  "background_color": "#091523",
+  "theme_color": "#3d7a55",
   "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "images/logo-icon.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
     {
       "src": "icon-192.png",
       "type": "image/png",

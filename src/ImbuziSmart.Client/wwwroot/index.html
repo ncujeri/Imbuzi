@@ -4,11 +4,19 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#e94560" />
+    <meta name="theme-color" content="#3d7a55" />
     <meta name="description" content="iMbuzi Smart - Offline-first livestock management for goat farmers" />
 
     <title>iMbuzi Smart</title>
     <base href="/" />
+
+    <!-- Apply saved theme immediately — prevents flash of wrong theme -->
+    <script>
+        (function () {
+            var t = localStorage.getItem('imbuzi-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
 
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="icon-192.png" />
@@ -20,9 +28,14 @@
 <body>
     <div id="app">
         <div class="loading-screen">
-            <span class="loading-icon">🐐</span>
-            <div class="loading-text">iMbuzi Smart</div>
-            <div class="loading-sub">Loading...</div>
+            <img src="/images/logo-banner.png" alt="Goatmetric Solutions"
+                style="max-width:260px;width:80%;margin-bottom:1rem;"
+                onerror="this.style.display='none';document.getElementById('loading-fallback').style.display='block'" />
+            <div id="loading-fallback" style="display:none">
+                <span class="loading-icon">&#128016;</span>
+                <div class="loading-text">iMbuzi Smart</div>
+            </div>
+            <div class="loading-sub">Loading&hellip;</div>
         </div>
     </div>
 
@@ -35,6 +48,15 @@
     <script src="js/indexedDb.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>
     <script>navigator.serviceWorker.register('service-worker.js');</script>
+    <script>
+        window.imbuziTheme = {
+            get: () => localStorage.getItem('imbuzi-theme') || 'dark',
+            set: (t) => {
+                localStorage.setItem('imbuzi-theme', t);
+                document.documentElement.setAttribute('data-theme', t);
+            }
+        };
+    </script>
     <script>
         window.imbuziNotify = {
             getPermission: () => typeof Notification !== 'undefined' ? Notification.permission : 'denied',

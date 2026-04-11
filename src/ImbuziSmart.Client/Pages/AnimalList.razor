@@ -1,0 +1,172 @@
+@page "/animals"
+@inject NavigationManager Navigation
+@inject IndexedDbService Db
+
+<PageTitle>Animals - iMbuzi Smart</PageTitle>
+
+<div class="animal-list-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick='() => Navigation.NavigateTo("/")'>&#8592; Back</button>
+        <h2 class="page-title">Animals</h2>
+        <button class="btn-icon-add" @onclick='() => Navigation.NavigateTo("/animals/new")' title="Add animal">
+            &#43;
+        </button>
+    </div>
+
+    <!-- Search / filter bar -->
+    <div class="list-toolbar">
+        <div class="search-box">
+            <span class="search-icon">&#128269;</span>
+            <input type="search" class="search-input" placeholder="Search name or tag…"
+                @oninput="OnSearch" value="@_search" />
+        </div>
+        <select class="filter-select" @onchange="OnStatusFilter">
+            <option value="">All statuses</option>
+            @foreach (var s in Enum.GetValues<AnimalStatus>())
+            {
+                <option value="@s">@s</option>
+            }
+        </select>
+    </div>
+
+    @if (!_loaded)
+    {
+        <div class="list-loading">Loading&#8230;</div>
+    }
+    else if (_filtered.Count == 0)
+    {
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#128016;</span>
+            @if (_animals.Count == 0)
+            {
+                <p>No animals registered yet.</p>
+                <button class="btn-primary" @onclick='() => Navigation.NavigateTo("/animals/new")'>
+                    &#43; Add First Animal
+                </button>
+            }
+            else
+            {
+                <p>No animals match your search.</p>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="animals-count">@_filtered.Count animal@(_filtered.Count == 1 ? "" : "s")</div>
+
+        <div class="animal-card-list">
+            @foreach (var a in _filtered)
+            {
+                <div class="animal-row-card" @onclick="() => ViewPassport(a.Id)">
+                    <div class="animal-row-avatar">
+                        @if (a.Photos.Count > 0)
+                        {
+                            <img src="data:@a.Photos[0].ContentType;base64,@a.Photos[0].Base64Data"
+                                alt="@a.Name" class="avatar-img" />
+                        }
+                        else
+                        {
+                            <span class="avatar-placeholder">&#128016;</span>
+                        }
+                    </div>
+                    <div class="animal-row-info">
+                        <div class="animal-row-name">@a.Name</div>
+                        <div class="animal-row-meta">
+                            <span class="meta-tag">@a.Tag</span>
+                            @if (!string.IsNullOrWhiteSpace(a.Breed))
+                            {
+                                <span class="meta-breed">@a.Breed</span>
+                            }
+                            else
+                            {
+                                <span class="meta-breed">@a.Species</span>
+                            }
+                        </div>
+                        <div class="animal-row-chips">
+                            <span class="chip @(a.Sex == Sex.Female ? "chip-female" : "chip-male")">
+                                @(a.Sex == Sex.Female ? "&#9792; Female" : "&#9794; Male")
+                            </span>
+                            <span class="chip @StatusChipClass(a.Status)">@a.Status</span>
+                        </div>
+                    </div>
+                    <button class="edit-btn" @onclick:stopPropagation="true"
+                        @onclick="() => EditAnimal(a.Id)" title="Edit">
+                        &#9998;
+                    </button>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Floating add button (visible when list is non-empty) -->
+    @if (_animals.Count > 0)
+    {
+        <button class="fab-add" @onclick='() => Navigation.NavigateTo("/animals/new")' title="Add animal">
+            &#43;
+        </button>
+    }
+</div>
+
+@code {
+    private List<Animal> _animals = new();
+    private List<Animal> _filtered = new();
+    private bool _loaded;
+    private string _search = string.Empty;
+    private string _statusFilter = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var all = await Db.GetAllAsync<Animal>("animals");
+            _animals = all.OrderBy(a => a.Name).ToList();
+            ApplyFilter();
+        }
+        catch { }
+        finally { _loaded = true; }
+    }
+
+    private void OnSearch(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? string.Empty;
+        ApplyFilter();
+    }
+
+    private void OnStatusFilter(ChangeEventArgs e)
+    {
+        _statusFilter = e.Value?.ToString() ?? string.Empty;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        var q = _animals.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            var term = _search.Trim().ToLowerInvariant();
+            q = q.Where(a =>
+                a.Name.ToLowerInvariant().Contains(term) ||
+                a.Tag.ToLowerInvariant().Contains(term));
+        }
+
+        if (!string.IsNullOrWhiteSpace(_statusFilter) &&
+            Enum.TryParse<AnimalStatus>(_statusFilter, out var status))
+        {
+            q = q.Where(a => a.Status == status);
+        }
+
+        _filtered = q.ToList();
+    }
+
+    private static string StatusChipClass(AnimalStatus status) => status switch
+    {
+        AnimalStatus.Active   => "chip-active",
+        AnimalStatus.Sold     => "chip-sold",
+        AnimalStatus.Deceased => "chip-deceased",
+        _                     => "chip-muted"
+    };
+
+    private void ViewPassport(Guid id) => Navigation.NavigateTo($"/passport/{id}");
+    private void EditAnimal(Guid id)   => Navigation.NavigateTo($"/animals/{id}/edit");
+}

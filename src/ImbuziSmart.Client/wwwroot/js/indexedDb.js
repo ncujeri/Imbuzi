@@ -1,13 +1,14 @@
 // iMbuzi Smart — IndexedDB wrapper for offline-first data storage
 
 const DB_NAME = 'ImbuziSmartDb';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORES = {
     animals: { keyPath: 'id', indexes: ['tenantId', 'tag', 'status'] },
     matingRecords: { keyPath: 'id', indexes: ['tenantId', 'buckId', 'doeId'] },
     heatRecords: { keyPath: 'id', indexes: ['tenantId', 'animalId'] },
     medicalLogs: { keyPath: 'id', indexes: ['tenantId', 'animalId'] },
+    weightRecords: { keyPath: 'id', indexes: ['tenantId', 'animalId'] },
     costEntries: { keyPath: 'id', indexes: ['tenantId', 'animalId', 'category'] },
     farmSettings: { keyPath: 'id', indexes: ['tenantId'] },
     syncQueue: { keyPath: 'id', indexes: ['entityType', 'action'] }

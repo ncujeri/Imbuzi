@@ -1,0 +1,327 @@
+@page "/medical/new"
+@using System.ComponentModel.DataAnnotations
+@inject NavigationManager Navigation
+@inject IndexedDbService Db
+@inject WithdrawalPeriodService WithdrawalSvc
+
+<PageTitle>Medical Log - iMbuzi Smart</PageTitle>
+
+<div class="medical-log-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick="GoBack">&#8592; Back</button>
+        <h2 class="page-title">Medical Log</h2>
+    </div>
+
+    @if (_animals.Count == 0 && _loaded)
+    {
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#128016;</span>
+            <p>No active animals found. Add animals first.</p>
+            <button class="btn-primary" @onclick='() => Navigation.NavigateTo("animals/new")'>
+                Add Animal
+            </button>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_form" OnValidSubmit="SaveAsync" class="medical-form">
+            <DataAnnotationsValidator />
+
+            <!-- Animal selector -->
+            <div class="form-section">
+                <h3 class="form-section-title">Select Animal</h3>
+
+                <div class="form-group">
+                    <label for="animal">Animal <span class="required">*</span></label>
+                    <InputSelect id="animal" @bind-Value="_form.AnimalId" class="form-select"
+                        @oninput="OnAnimalChanged">
+                        <option value="">&#8212; Choose an animal &#8212;</option>
+                        @foreach (var animal in _animals)
+                        {
+                            <option value="@animal.Id">@animal.Name (@animal.Tag)</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="@(() => _form.AnimalId)" class="validation-msg" />
+                </div>
+
+                @if (_selectedAnimal is not null)
+                {
+                    <div class="animal-summary">
+                        <span class="doe-chip">@(_selectedAnimal.Breed ?? _selectedAnimal.Species.ToString())</span>
+                        <span class="doe-chip @(_selectedAnimal.Sex == Sex.Female ? "chip-teal" : "chip-muted")">
+                            @_selectedAnimal.Sex
+                        </span>
+                        @if (_withdrawalStatus?.IsUnderWithdrawal == true)
+                        {
+                            <span class="doe-chip chip-warning">
+                                &#9888; Under withdrawal &mdash; ends @_withdrawalStatus.LatestWithdrawalEnd?.ToString("dd MMM yyyy")
+                            </span>
+                        }
+                        else if (_selectedAnimal is not null)
+                        {
+                            <span class="doe-chip chip-muted">No active withdrawal</span>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- Treatment details -->
+            <div class="form-section">
+                <h3 class="form-section-title">Treatment Details</h3>
+
+                <div class="form-group">
+                    <label for="date">Treatment Date <span class="required">*</span></label>
+                    <InputDate id="date" @bind-Value="_form.TreatmentDate" class="form-input"
+                        max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    <ValidationMessage For="@(() => _form.TreatmentDate)" class="validation-msg" />
+                </div>
+
+                <div class="form-group">
+                    <label for="medication">Medication <span class="required">*</span></label>
+                    <InputText id="medication" @bind-Value="_form.Medication" class="form-input"
+                        placeholder="e.g. Ivermectin, Oxytetracycline LA, Pulpy Kidney Vaccine" />
+                    <ValidationMessage For="@(() => _form.Medication)" class="validation-msg" />
+                    <!-- Quick-pick common treatments -->
+                    <div class="quick-picks">
+                        @foreach (var med in CommonMedications)
+                        {
+                            <button type="button" class="quick-pick-chip" @onclick="() => _form.Medication = med">
+                                @med
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="dosage">Dosage</label>
+                    <InputText id="dosage" @bind-Value="_form.Dosage" class="form-input"
+                        placeholder="e.g. 1ml per 10kg body weight, 2ml subcutaneous" />
+                </div>
+            </div>
+
+            <!-- Withdrawal period -->
+            <div class="form-section">
+                <h3 class="form-section-title">Withdrawal Period</h3>
+
+                <div class="form-group">
+                    <label for="withdrawal">Withdrawal Period (days)</label>
+                    <InputNumber id="withdrawal" @bind-Value="_form.WithdrawalPeriodDays" class="form-input"
+                        placeholder="Leave blank if no withdrawal required" min="0" max="365" />
+                    <span class="field-hint">Number of days before animal products or meat can be used/sold</span>
+                </div>
+
+                @if (_form.WithdrawalPeriodDays is > 0)
+                {
+                    <div class="withdrawal-card">
+                        <div class="withdrawal-row">
+                            <span class="withdrawal-label">&#128197; Treatment date</span>
+                            <span class="withdrawal-value">@_form.TreatmentDate.ToString("dd MMM yyyy")</span>
+                        </div>
+                        <div class="prediction-divider"></div>
+                        <div class="withdrawal-row highlight">
+                            <span class="withdrawal-label">&#9888; Withdrawal ends</span>
+                            <span class="withdrawal-value">
+                                @_form.TreatmentDate.AddDays(_form.WithdrawalPeriodDays.Value).ToString("dd MMM yyyy")
+                            </span>
+                        </div>
+                        <div class="prediction-note">
+                            @_form.WithdrawalPeriodDays days &bull; Do not sell or slaughter before this date
+                        </div>
+                    </div>
+                }
+                else if (_form.WithdrawalPeriodDays == 0)
+                {
+                    <div class="no-withdrawal-note">&#10003; No withdrawal period — market-ready treatment</div>
+                }
+            </div>
+
+            <!-- Vet & Notes -->
+            <div class="form-section">
+                <h3 class="form-section-title">Vet &amp; Notes</h3>
+
+                <div class="form-group">
+                    <label for="vet">Veterinarian</label>
+                    <InputText id="vet" @bind-Value="_form.VetName" class="form-input"
+                        placeholder="e.g. Dr. Mokoena" />
+                </div>
+
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <InputTextArea id="notes" @bind-Value="_form.Notes" class="form-textarea" rows="3"
+                        placeholder="Diagnosis, symptoms, follow-up instructions..." />
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="form-error-banner">&#9888; @_errorMessage</div>
+            }
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" @onclick="GoBack" disabled="@_isSaving">Cancel</button>
+                <button type="submit" class="btn-primary" disabled="@_isSaving">
+                    @(_isSaving ? "Saving\u2026" : "\uD83D\uDC89 Save Medical Log")
+                </button>
+            </div>
+        </EditForm>
+
+        <!-- Recent medical history -->
+        @if (_recentRecords.Count > 0)
+        {
+            <div class="history-section">
+                <h3 class="history-title">Recent Treatment History</h3>
+                @foreach (var rec in _recentRecords)
+                {
+                    var isActiveWithdrawal = rec.WithdrawalEndDate.HasValue && rec.WithdrawalEndDate.Value > DateTime.Today;
+                    <div class="medical-history-card @(isActiveWithdrawal ? "withdrawal-active" : "")">
+                        <div class="history-main">
+                            <span class="history-date">@rec.TreatmentDate.ToString("dd MMM yyyy")</span>
+                            @if (isActiveWithdrawal)
+                            {
+                                <span class="med-badge badge-warning">
+                                    &#9888; Withdrawal: @rec.WithdrawalEndDate?.ToString("dd MMM")
+                                </span>
+                            }
+                            else if (rec.WithdrawalPeriodDays.HasValue)
+                            {
+                                <span class="med-badge badge-cleared">&#10003; Cleared</span>
+                            }
+                        </div>
+                        <div class="med-name">@rec.Medication</div>
+                        @if (!string.IsNullOrWhiteSpace(rec.Dosage))
+                        {
+                            <div class="med-dosage">@rec.Dosage</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(rec.VetName))
+                        {
+                            <div class="med-vet">&#128084; @rec.VetName</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(rec.Notes))
+                        {
+                            <p class="history-signs">@rec.Notes</p>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+    private static readonly string[] CommonMedications =
+    [
+        "Ivermectin", "Albendazole", "Oxytetracycline LA",
+        "Sulphadimidine", "Pulpy Kidney Vaccine", "Vitamin ADE"
+    ];
+
+    private MedicalFormModel _form = new();
+    private List<Animal> _animals = new();
+    private Animal? _selectedAnimal;
+    private WithdrawalPeriodService.WithdrawalStatus? _withdrawalStatus;
+    private List<MedicalLog> _recentRecords = new();
+    private bool _isSaving;
+    private bool _loaded;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var all = await Db.GetAllAsync<Animal>("animals");
+            _animals = all
+                .Where(a => a.Status == AnimalStatus.Active)
+                .OrderBy(a => a.Name)
+                .ToList();
+        }
+        catch { }
+        finally { _loaded = true; }
+    }
+
+    private async Task OnAnimalChanged(ChangeEventArgs e)
+    {
+        _selectedAnimal = null;
+        _withdrawalStatus = null;
+        _recentRecords.Clear();
+
+        if (!string.IsNullOrEmpty(e.Value?.ToString()) &&
+            Guid.TryParse(e.Value.ToString(), out var id))
+        {
+            _selectedAnimal = _animals.FirstOrDefault(a => a.Id == id);
+            await LoadMedicalHistoryAsync(id);
+        }
+    }
+
+    private async Task LoadMedicalHistoryAsync(Guid animalId)
+    {
+        try
+        {
+            var allLogs = await Db.GetAllAsync<MedicalLog>("medicalLogs");
+            _recentRecords = allLogs
+                .Where(r => r.AnimalId == animalId)
+                .OrderByDescending(r => r.TreatmentDate)
+                .Take(5)
+                .ToList();
+
+            _withdrawalStatus = WithdrawalSvc.CheckWithdrawalStatus(_recentRecords);
+        }
+        catch { }
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSaving = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var record = new MedicalLog
+            {
+                Id = Guid.NewGuid(),
+                TenantId = DemoTenantId,
+                AnimalId = Guid.Parse(_form.AnimalId),
+                TreatmentDate = _form.TreatmentDate,
+                Medication = _form.Medication.Trim(),
+                Dosage = string.IsNullOrWhiteSpace(_form.Dosage) ? null : _form.Dosage.Trim(),
+                WithdrawalPeriodDays = _form.WithdrawalPeriodDays,
+                VetName = string.IsNullOrWhiteSpace(_form.VetName) ? null : _form.VetName.Trim(),
+                Notes = string.IsNullOrWhiteSpace(_form.Notes) ? null : _form.Notes.Trim(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await Db.PutAsync("medicalLogs", record);
+            Navigation.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save: {ex.Message}";
+            _isSaving = false;
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/");
+
+    // --- Form model ---
+
+    private class MedicalFormModel
+    {
+        [Required(ErrorMessage = "Please select an animal")]
+        public string AnimalId { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Treatment date is required")]
+        public DateTime TreatmentDate { get; set; } = DateTime.Today;
+
+        [Required(ErrorMessage = "Medication name is required")]
+        [StringLength(100, MinimumLength = 1, ErrorMessage = "Medication must be 1–100 characters")]
+        public string Medication { get; set; } = string.Empty;
+
+        public string? Dosage { get; set; }
+
+        [Range(0, 365, ErrorMessage = "Withdrawal period must be between 0 and 365 days")]
+        public int? WithdrawalPeriodDays { get; set; }
+
+        public string? VetName { get; set; }
+        public string? Notes { get; set; }
+    }
+}

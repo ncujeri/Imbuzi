@@ -1,0 +1,422 @@
+@page "/weight/new"
+@using System.ComponentModel.DataAnnotations
+@inject NavigationManager Navigation
+@inject IndexedDbService Db
+@inject WeightCalculatorService WeightCalc
+
+<PageTitle>Weigh Animal - iMbuzi Smart</PageTitle>
+
+<div class="weigh-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick="GoBack">&#8592; Back</button>
+        <h2 class="page-title">Weigh Animal</h2>
+    </div>
+
+    @if (_animals.Count == 0 && _loaded)
+    {
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#128016;</span>
+            <p>No active animals found. Add animals first.</p>
+            <button class="btn-primary" @onclick='() => Navigation.NavigateTo("animals/new")'>
+                Add Animal
+            </button>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_form" OnValidSubmit="SaveAsync" class="weigh-form">
+            <DataAnnotationsValidator />
+
+            <!-- Animal selector -->
+            <div class="form-section">
+                <h3 class="form-section-title">Select Animal</h3>
+
+                <div class="form-group">
+                    <label for="animal">Animal <span class="required">*</span></label>
+                    <InputSelect id="animal" @bind-Value="_form.AnimalId" class="form-select"
+                        @oninput="OnAnimalChanged">
+                        <option value="">&#8212; Choose an animal &#8212;</option>
+                        @foreach (var animal in _animals)
+                        {
+                            <option value="@animal.Id">@animal.Name (@animal.Tag)</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="@(() => _form.AnimalId)" class="validation-msg" />
+                </div>
+
+                @if (_selectedAnimal is not null)
+                {
+                    <div class="animal-summary">
+                        <span class="doe-chip">@(_selectedAnimal.Breed ?? _selectedAnimal.Species.ToString())</span>
+                        <span class="doe-chip chip-muted">@_selectedAnimal.Sex</span>
+                        @if (_lastWeight is not null)
+                        {
+                            <span class="doe-chip chip-teal">
+                                Last: @_lastWeight.Kilograms.ToString("0.#") kg &bull; @_lastWeight.WeighedAt.ToString("dd MMM yyyy")
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="doe-chip chip-muted">No weight records</span>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- Date -->
+            <div class="form-section">
+                <h3 class="form-section-title">Measurement Details</h3>
+
+                <div class="form-group">
+                    <label for="date">Date Weighed <span class="required">*</span></label>
+                    <InputDate id="date" @bind-Value="_form.WeighedAt" class="form-input"
+                        max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    <ValidationMessage For="@(() => _form.WeighedAt)" class="validation-msg" />
+                </div>
+
+                <!-- Method toggle — Heart Girth first, Scale second -->
+                <div class="form-group">
+                    <label>Measurement Method</label>
+                    <div class="method-toggle">
+                        <button type="button"
+                            class="method-btn @(_form.Method == "HeartGirth" ? "selected" : "")"
+                            @onclick='() => SelectMethod("HeartGirth")'>
+                            <span class="method-icon">&#128207;</span>
+                            <span class="method-label">Heart Girth</span>
+                            <span class="method-desc">Tape measure estimate</span>
+                        </button>
+                        <button type="button"
+                            class="method-btn @(_form.Method == "Scale" ? "selected" : "")"
+                            @onclick='() => SelectMethod("Scale")'>
+                            <span class="method-icon">&#9878;</span>
+                            <span class="method-label">Scale</span>
+                            <span class="method-desc">Direct weigh scale</span>
+                        </button>
+                    </div>
+                </div>
+
+                @if (_form.Method == "HeartGirth")
+                {
+                    <!-- Raw <input> so @oninput updates the model before recalc reads it -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="hg">Heart Girth <span class="required">*</span></label>
+                            <div class="input-unit-row">
+                                <input id="hg" type="number" class="form-input"
+                                    value="@_form.HeartGirthCm"
+                                    placeholder="e.g. 68" step="0.5" min="1" max="300"
+                                    @oninput="@(e => OnHgInput(e, isGirth: true))" />
+                                <span class="input-unit">cm</span>
+                            </div>
+                            @if (_hgError is not null)
+                            {
+                                <span class="validation-msg">@_hgError</span>
+                            }
+                        </div>
+                        <div class="form-group">
+                            <label for="bl">Body Length <span class="required">*</span></label>
+                            <div class="input-unit-row">
+                                <input id="bl" type="number" class="form-input"
+                                    value="@_form.BodyLengthCm"
+                                    placeholder="e.g. 60" step="0.5" min="1" max="300"
+                                    @oninput="@(e => OnHgInput(e, isGirth: false))" />
+                                <span class="input-unit">cm</span>
+                            </div>
+                            @if (_blError is not null)
+                            {
+                                <span class="validation-msg">@_blError</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="hg-guide">
+                        <span class="hg-guide-icon">&#8505;</span>
+                        <span>Measure heart girth just behind the front legs. Body length from shoulder to tail base.</span>
+                    </div>
+
+                    @if (_estimatedKg is not null)
+                    {
+                        <div class="weight-estimate-card">
+                            <span class="estimate-label">Calculated weight</span>
+                            <span class="estimate-value">@_estimatedKg.Value.ToString("0.00") kg</span>
+                            <span class="estimate-formula">
+                                (@_form.HeartGirthCm&#178; &times; @_form.BodyLengthCm) &divide; 10&thinsp;838
+                            </span>
+                            <div class="estimate-kg-row">
+                                <span class="estimate-kg-label">Override kg (optional)</span>
+                                <div class="input-unit-row" style="max-width:160px">
+                                    <input type="number" class="form-input"
+                                        value="@(_form.Kilograms?.ToString("0.00") ?? _estimatedKg.Value.ToString("0.00"))"
+                                        step="0.01" min="0.1" max="500"
+                                        @oninput="@(e => {
+                                            if (double.TryParse(e.Value?.ToString(),
+                                                System.Globalization.NumberStyles.Any,
+                                                System.Globalization.CultureInfo.InvariantCulture, out var v))
+                                                _form.Kilograms = v;
+                                        })" />
+                                    <span class="input-unit">kg</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label for="kg">Weight (kg) <span class="required">*</span></label>
+                        <div class="input-unit-row">
+                            <InputNumber id="kg" @bind-Value="_form.Kilograms" class="form-input"
+                                placeholder="e.g. 34.5" step="0.1" min="0.1" max="500" />
+                            <span class="input-unit">kg</span>
+                        </div>
+                        <ValidationMessage For="@(() => _form.Kilograms)" class="validation-msg" />
+                    </div>
+                }
+
+                <div class="form-group" style="margin-top:0.75rem">
+                    <label for="notes">Notes</label>
+                    <InputTextArea id="notes" @bind-Value="_form.Notes" class="form-textarea" rows="2"
+                        placeholder="Body condition, feed state, observations..." />
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="form-error-banner">&#9888; @_errorMessage</div>
+            }
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" @onclick="GoBack" disabled="@_isSaving">Cancel</button>
+                <button type="submit" class="btn-primary" disabled="@_isSaving">
+                    @(_isSaving ? "Saving\u2026" : "\u2696\uFE0F Save Weight")
+                </button>
+            </div>
+        </EditForm>
+
+        <!-- Weight history -->
+        @if (_recentRecords.Count > 0)
+        {
+            <div class="history-section">
+                <h3 class="history-title">Weight History</h3>
+                @for (int i = 0; i < _recentRecords.Count; i++)
+                {
+                    var rec = _recentRecords[i];
+                    var prev = i + 1 < _recentRecords.Count ? _recentRecords[i + 1] : null;
+                    var diff = prev is not null ? rec.Kilograms - prev.Kilograms : (double?)null;
+                    <div class="weight-history-card">
+                        <div class="history-main">
+                            <span class="history-date">@rec.WeighedAt.ToString("dd MMM yyyy")</span>
+                            <span class="weight-value">@rec.Kilograms.ToString("0.0") kg</span>
+                            @if (diff.HasValue)
+                            {
+                                <span class="weight-delta @(diff > 0 ? "delta-up" : diff < 0 ? "delta-down" : "delta-flat")">
+                                    @(diff > 0 ? "&#9650;" : diff < 0 ? "&#9660;" : "&#9644;")
+                                    @(Math.Abs(diff.Value).ToString("0.0")) kg
+                                </span>
+                            }
+                        </div>
+                        <div class="weight-method">@(rec.Method == "HeartGirth" ? "&#128207; Heart Girth" : "&#9878; Scale")</div>
+                        @if (!string.IsNullOrWhiteSpace(rec.Notes))
+                        {
+                            <p class="history-signs">@rec.Notes</p>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+    private WeighFormModel _form = new();
+    private List<Animal> _animals = new();
+    private Animal? _selectedAnimal;
+    private WeightRecord? _lastWeight;
+    private List<WeightRecord> _recentRecords = new();
+    private double? _estimatedKg;
+    private string? _hgError;
+    private string? _blError;
+    private bool _isSaving;
+    private bool _loaded;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var all = await Db.GetAllAsync<Animal>("animals");
+            _animals = all
+                .Where(a => a.Status == AnimalStatus.Active)
+                .OrderBy(a => a.Name)
+                .ToList();
+        }
+        catch { }
+        finally { _loaded = true; }
+    }
+
+    private async Task OnAnimalChanged(ChangeEventArgs e)
+    {
+        _selectedAnimal = null;
+        _lastWeight = null;
+        _recentRecords.Clear();
+
+        if (!string.IsNullOrEmpty(e.Value?.ToString()) &&
+            Guid.TryParse(e.Value.ToString(), out var id))
+        {
+            _selectedAnimal = _animals.FirstOrDefault(a => a.Id == id);
+            await LoadWeightHistoryAsync(id);
+        }
+    }
+
+    private async Task LoadWeightHistoryAsync(Guid animalId)
+    {
+        try
+        {
+            var all = await Db.GetAllAsync<WeightRecord>("weightRecords");
+            _recentRecords = all
+                .Where(r => r.AnimalId == animalId)
+                .OrderByDescending(r => r.WeighedAt)
+                .Take(5)
+                .ToList();
+
+            _lastWeight = _recentRecords.FirstOrDefault();
+        }
+        catch { }
+    }
+
+    private void SelectMethod(string method)
+    {
+        _form.Method = method;
+        _estimatedKg = null;
+        _hgError = null;
+        _blError = null;
+
+        if (method == "Scale")
+        {
+            _form.HeartGirthCm = null;
+            _form.BodyLengthCm = null;
+        }
+        else
+        {
+            _form.Kilograms = null;
+        }
+    }
+
+    private void OnHgInput(ChangeEventArgs e, bool isGirth)
+    {
+        var raw = e.Value?.ToString();
+        if (double.TryParse(raw, System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.InvariantCulture, out var val) && val > 0)
+        {
+            if (isGirth) { _form.HeartGirthCm = val; _hgError = null; }
+            else         { _form.BodyLengthCm  = val; _blError = null; }
+        }
+        else
+        {
+            if (isGirth) { _form.HeartGirthCm = null; _hgError = "Enter a valid heart girth (cm)"; }
+            else         { _form.BodyLengthCm  = null; _blError = "Enter a valid body length (cm)"; }
+        }
+
+        // Recompute estimate from the now-updated model fields
+        _estimatedKg = null;
+        if (_form.HeartGirthCm is > 0 && _form.BodyLengthCm is > 0)
+        {
+            try
+            {
+                var w = WeightCalc.CalculateFromHeartGirth(_form.HeartGirthCm.Value, _form.BodyLengthCm.Value);
+                _estimatedKg = w.Kilograms;
+            }
+            catch { }
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSaving = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            double kilograms;
+            if (_form.Method == "HeartGirth")
+            {
+                if (_form.HeartGirthCm is null or <= 0 || _form.BodyLengthCm is null or <= 0)
+                {
+                    _errorMessage = "Enter both heart girth and body length before saving.";
+                    _isSaving = false;
+                    return;
+                }
+                // Use manually overridden kg if provided, otherwise use computed estimate
+                if (_form.Kilograms is > 0)
+                {
+                    kilograms = _form.Kilograms.Value;
+                }
+                else
+                {
+                    var w = WeightCalc.CalculateFromHeartGirth(_form.HeartGirthCm.Value, _form.BodyLengthCm.Value);
+                    kilograms = w.Kilograms;
+                }
+            }
+            else
+            {
+                if (_form.Kilograms is null or <= 0)
+                {
+                    _errorMessage = "Enter the animal's weight before saving.";
+                    _isSaving = false;
+                    return;
+                }
+                kilograms = _form.Kilograms.Value;
+            }
+
+            var record = new WeightRecord
+            {
+                Id = Guid.NewGuid(),
+                TenantId = DemoTenantId,
+                AnimalId = Guid.Parse(_form.AnimalId),
+                WeighedAt = _form.WeighedAt,
+                Kilograms = kilograms,
+                Method = _form.Method,
+                HeartGirthCm = _form.HeartGirthCm,
+                BodyLengthCm = _form.BodyLengthCm,
+                Notes = string.IsNullOrWhiteSpace(_form.Notes) ? null : _form.Notes.Trim(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await Db.PutAsync("weightRecords", record);
+            Navigation.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save: {ex.Message}";
+            _isSaving = false;
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/");
+
+    // --- Form model ---
+
+    private class WeighFormModel
+    {
+        [Required(ErrorMessage = "Please select an animal")]
+        public string AnimalId { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Date is required")]
+        public DateTime WeighedAt { get; set; } = DateTime.Today;
+
+        public string Method { get; set; } = "HeartGirth";
+
+        [Range(0.1, 500, ErrorMessage = "Weight must be between 0.1 and 500 kg")]
+        public double? Kilograms { get; set; }
+
+        [Range(1, 300, ErrorMessage = "Heart girth must be between 1 and 300 cm")]
+        public double? HeartGirthCm { get; set; }
+
+        [Range(1, 300, ErrorMessage = "Body length must be between 1 and 300 cm")]
+        public double? BodyLengthCm { get; set; }
+
+        public string? Notes { get; set; }
+    }
+}

@@ -1,0 +1,532 @@
+@page "/animals/new"
+@using System.ComponentModel.DataAnnotations
+@inject NavigationManager Navigation
+@inject IndexedDbService Db
+@inject WeightCalculatorService WeightCalc
+
+<PageTitle>Add Animal - iMbuzi Smart</PageTitle>
+
+<div class="add-animal-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick="GoBack">&#8592; Back</button>
+        <h2 class="page-title">New Animal</h2>
+    </div>
+
+    <EditForm Model="_form" OnValidSubmit="SaveAnimalAsync" class="animal-form">
+        <DataAnnotationsValidator />
+
+        <!-- Basic Info -->
+        <div class="form-section">
+            <h3 class="form-section-title">Basic Information</h3>
+
+            <div class="form-group">
+                <label for="name">Name <span class="required">*</span></label>
+                <InputText id="name" @bind-Value="_form.Name" class="form-input" placeholder="e.g. Themba" />
+                <ValidationMessage For="@(() => _form.Name)" class="validation-msg" />
+            </div>
+
+            <div class="form-group">
+                <label for="tag">Tag Number <span class="required">*</span></label>
+                <InputText id="tag" @bind-Value="_form.Tag" class="form-input" placeholder="e.g. BK-003" />
+                <ValidationMessage For="@(() => _form.Tag)" class="validation-msg" />
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="species">Species <span class="required">*</span></label>
+                    <InputSelect id="species" @bind-Value="_form.Species" class="form-select">
+                        @foreach (var s in Enum.GetValues<Species>())
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="form-group">
+                    <label for="sex">Sex <span class="required">*</span></label>
+                    <InputSelect id="sex" @bind-Value="_form.Sex" class="form-select">
+                        @foreach (var s in Enum.GetValues<Sex>())
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    </InputSelect>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="breed">Breed</label>
+                <InputText id="breed" @bind-Value="_form.Breed" class="form-input"
+                    placeholder="e.g. Boer, Savanna, Indigenous Veld" />
+            </div>
+        </div>
+
+        <!-- Acquisition / Origin -->
+        <div class="form-section">
+            <h3 class="form-section-title">Origin</h3>
+
+            <div class="form-group">
+                <label>How was this animal acquired?</label>
+                <div class="method-toggle">
+                    <button type="button"
+                        class="method-btn @(_form.AcquisitionType == "BornOnFarm" ? "selected" : "")"
+                        @onclick='() => _form.AcquisitionType = "BornOnFarm"'>
+                        <span class="method-icon">&#127968;</span>
+                        <span class="method-label">Born on Farm</span>
+                        <span class="method-desc">Parents known</span>
+                    </button>
+                    <button type="button"
+                        class="method-btn @(_form.AcquisitionType == "Purchased" ? "selected" : "")"
+                        @onclick='() => _form.AcquisitionType = "Purchased"'>
+                        <span class="method-icon">&#128179;</span>
+                        <span class="method-label">Purchased</span>
+                        <span class="method-desc">Bought externally</span>
+                    </button>
+                </div>
+            </div>
+
+            @if (_form.AcquisitionType == "Purchased")
+            {
+                <div class="form-group">
+                    <label for="purchasedFrom">Purchased From</label>
+                    <InputText id="purchasedFrom" @bind-Value="_form.PurchasedFrom" class="form-input"
+                        placeholder="e.g. Mokoena Farm, Local auction" />
+                </div>
+
+                <div class="form-group">
+                    <label for="acquiredOn">Date Purchased</label>
+                    <InputDate id="acquiredOn" @bind-Value="_form.AcquisitionDate" class="form-input"
+                        max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                </div>
+
+                <div class="form-group">
+                    <label for="dob">Date of Birth (if known)</label>
+                    <InputDate id="dob" @bind-Value="_form.DateOfBirth" class="form-input" />
+                    <span class="field-hint">Leave blank if unknown — common for purchased animals</span>
+                </div>
+
+                <div class="purchased-notice">
+                    <span class="notice-icon">&#8505;</span>
+                    <span>Parent records are not required for purchased animals.</span>
+                </div>
+            }
+            else
+            {
+                <!-- Born on Farm: show date of birth and parents -->
+                <div class="form-group">
+                    <label for="dob">Date of Birth</label>
+                    <InputDate id="dob" @bind-Value="_form.DateOfBirth" class="form-input" />
+                </div>
+
+                <div class="form-group">
+                    <label for="sire">Sire (Father)</label>
+                    <InputSelect id="sire" @bind-Value="_form.SireId" class="form-select">
+                        <option value="">&#8212; Unknown / None &#8212;</option>
+                        @foreach (var male in _males)
+                        {
+                            <option value="@male.Id">@male.Name (@male.Tag)</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="form-group">
+                    <label for="dam">Dam (Mother)</label>
+                    <InputSelect id="dam" @bind-Value="_form.DamId" class="form-select">
+                        <option value="">&#8212; Unknown / None &#8212;</option>
+                        @foreach (var female in _females)
+                        {
+                            <option value="@female.Id">@female.Name (@female.Tag)</option>
+                        }
+                    </InputSelect>
+                </div>
+            }
+        </div>
+
+        <!-- Initial Weight (optional) -->
+        <div class="form-section">
+            <h3 class="form-section-title">Initial Weight <span class="optional-label">(optional)</span></h3>
+
+            <div class="form-group">
+                <label>Measurement Method</label>
+                <div class="method-toggle">
+                    <button type="button"
+                        class="method-btn @(_form.WeightMethod == "HeartGirth" ? "selected" : "")"
+                        @onclick='() => SelectWeightMethod("HeartGirth")'>
+                        <span class="method-icon">&#128207;</span>
+                        <span class="method-label">Heart Girth</span>
+                        <span class="method-desc">Tape measure</span>
+                    </button>
+                    <button type="button"
+                        class="method-btn @(_form.WeightMethod == "Scale" ? "selected" : "")"
+                        @onclick='() => SelectWeightMethod("Scale")'>
+                        <span class="method-icon">&#9878;</span>
+                        <span class="method-label">Scale</span>
+                        <span class="method-desc">Direct weight</span>
+                    </button>
+                    <button type="button"
+                        class="method-btn @(_form.WeightMethod == "None" ? "selected" : "")"
+                        @onclick='() => SelectWeightMethod("None")'>
+                        <span class="method-icon">&#10060;</span>
+                        <span class="method-label">Skip</span>
+                        <span class="method-desc">Record later</span>
+                    </button>
+                </div>
+            </div>
+
+            @if (_form.WeightMethod == "HeartGirth")
+            {
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="hg">Heart Girth <span class="required">*</span></label>
+                        <div class="input-unit-row">
+                            <input id="hg" type="number" class="form-input"
+                                value="@_form.HeartGirthCm"
+                                placeholder="e.g. 68" step="0.5" min="1" max="300"
+                                @oninput="@(e => OnHgInput(e, isGirth: true))" />
+                            <span class="input-unit">cm</span>
+                        </div>
+                        @if (_hgError is not null) { <span class="validation-msg">@_hgError</span> }
+                    </div>
+                    <div class="form-group">
+                        <label for="bl">Body Length <span class="required">*</span></label>
+                        <div class="input-unit-row">
+                            <input id="bl" type="number" class="form-input"
+                                value="@_form.BodyLengthCm"
+                                placeholder="e.g. 60" step="0.5" min="1" max="300"
+                                @oninput="@(e => OnHgInput(e, isGirth: false))" />
+                            <span class="input-unit">cm</span>
+                        </div>
+                        @if (_blError is not null) { <span class="validation-msg">@_blError</span> }
+                    </div>
+                </div>
+
+                @if (_estimatedKg is not null)
+                {
+                    <div class="weight-estimate-card">
+                        <span class="estimate-label">Calculated weight</span>
+                        <span class="estimate-value">@_estimatedKg.Value.ToString("0.00") kg</span>
+                        <div class="estimate-kg-row">
+                            <span class="estimate-kg-label">Override kg (optional)</span>
+                            <div class="input-unit-row" style="max-width:160px">
+                                <input type="number" class="form-input"
+                                    value="@(_form.WeightKg?.ToString("0.00") ?? _estimatedKg.Value.ToString("0.00"))"
+                                    step="0.01" min="0.1" max="500"
+                                    @oninput="@(e => {
+                                        if (double.TryParse(e.Value?.ToString(),
+                                            System.Globalization.NumberStyles.Any,
+                                            System.Globalization.CultureInfo.InvariantCulture, out var v))
+                                            _form.WeightKg = v;
+                                    })" />
+                                <span class="input-unit">kg</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            else if (_form.WeightMethod == "Scale")
+            {
+                <div class="form-group">
+                    <label for="wkg">Weight (kg)</label>
+                    <div class="input-unit-row">
+                        <InputNumber id="wkg" @bind-Value="_form.WeightKg" class="form-input"
+                            placeholder="e.g. 34.5" step="0.1" min="0.1" max="500" />
+                        <span class="input-unit">kg</span>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Status & Notes -->
+        <div class="form-section">
+            <h3 class="form-section-title">Status &amp; Notes</h3>
+
+            <div class="form-group">
+                <label for="status">Status</label>
+                <InputSelect id="status" @bind-Value="_form.Status" class="form-select">
+                    @foreach (var s in Enum.GetValues<AnimalStatus>())
+                    {
+                        <option value="@s">@s</option>
+                    }
+                </InputSelect>
+            </div>
+
+            <div class="form-group">
+                <label for="notes">Notes</label>
+                <InputTextArea id="notes" @bind-Value="_form.Notes" class="form-textarea" rows="3"
+                    placeholder="Any observations, health history, or special notes..." />
+            </div>
+        </div>
+
+        <!-- Photos -->
+        <div class="form-section">
+            <h3 class="form-section-title">Photos</h3>
+
+            <div class="photo-upload-area">
+                <InputFile id="photo-input" OnChange="HandlePhotoUpload" accept="image/*" multiple
+                    class="photo-file-input" />
+                <label for="photo-input" class="photo-label">
+                    <span class="photo-upload-icon">&#128247;</span>
+                    <span class="photo-upload-text">Tap to add photos</span>
+                    <span class="photo-upload-sub">Camera or gallery &bull; Max 5 photos, 5 MB each</span>
+                </label>
+            </div>
+
+            @if (_previewPhotos.Count > 0)
+            {
+                <div class="photo-preview-grid">
+                    @foreach (var photo in _previewPhotos)
+                    {
+                        <div class="photo-preview-item">
+                            <img src="@photo.DataUrl" alt="Preview" />
+                            <button type="button" class="remove-photo-btn" @onclick="() => RemovePhoto(photo)">
+                                &#215;
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="form-error-banner">&#9888; @_errorMessage</div>
+        }
+
+        <div class="form-actions">
+            <button type="button" class="btn-secondary" @onclick="GoBack" disabled="@_isSaving">Cancel</button>
+            <button type="submit" class="btn-primary" disabled="@_isSaving">
+                @(_isSaving ? "Saving\u2026" : "\u2713 Save Animal")
+            </button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+    private AnimalFormModel _form = new();
+    private List<Animal> _males = new();
+    private List<Animal> _females = new();
+    private List<PreviewPhoto> _previewPhotos = new();
+    private bool _isSaving;
+    private string _errorMessage = string.Empty;
+
+    // Weight sub-form state
+    private double? _estimatedKg;
+    private string? _hgError;
+    private string? _blError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var all = await Db.GetAllAsync<Animal>("animals");
+            _males   = all.Where(a => a.Sex == Sex.Male   && a.Status == AnimalStatus.Active).ToList();
+            _females = all.Where(a => a.Sex == Sex.Female && a.Status == AnimalStatus.Active).ToList();
+        }
+        catch { }
+    }
+
+    private void SelectWeightMethod(string method)
+    {
+        _form.WeightMethod  = method;
+        _estimatedKg        = null;
+        _hgError            = null;
+        _blError            = null;
+        _form.HeartGirthCm  = null;
+        _form.BodyLengthCm  = null;
+        _form.WeightKg      = null;
+    }
+
+    private void OnHgInput(ChangeEventArgs e, bool isGirth)
+    {
+        var raw = e.Value?.ToString();
+        if (double.TryParse(raw, System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.InvariantCulture, out var val) && val > 0)
+        {
+            if (isGirth) { _form.HeartGirthCm = val; _hgError = null; }
+            else         { _form.BodyLengthCm  = val; _blError = null; }
+        }
+        else
+        {
+            if (isGirth) { _form.HeartGirthCm = null; _hgError = "Enter a valid heart girth (cm)"; }
+            else         { _form.BodyLengthCm  = null; _blError = "Enter a valid body length (cm)"; }
+        }
+
+        _estimatedKg = null;
+        if (_form.HeartGirthCm is > 0 && _form.BodyLengthCm is > 0)
+        {
+            try
+            {
+                var w = WeightCalc.CalculateFromHeartGirth(_form.HeartGirthCm.Value, _form.BodyLengthCm.Value);
+                _estimatedKg = w.Kilograms;
+            }
+            catch { }
+        }
+    }
+
+    private async Task SaveAnimalAsync()
+    {
+        _isSaving     = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            // Tag uniqueness check
+            var existing = await Db.GetAllAsync<Animal>("animals");
+            if (existing.Any(a => a.Tag.Equals(_form.Tag.Trim(), StringComparison.OrdinalIgnoreCase)))
+            {
+                _errorMessage = $"Tag \"{_form.Tag.Trim()}\" is already in use. Please use a unique tag.";
+                _isSaving     = false;
+                return;
+            }
+
+            // Validate heart girth if that method is chosen
+            if (_form.WeightMethod == "HeartGirth" &&
+                (_form.HeartGirthCm is null or <= 0 || _form.BodyLengthCm is null or <= 0))
+            {
+                _errorMessage = "Enter both heart girth and body length, or switch to a different weight method.";
+                _isSaving     = false;
+                return;
+            }
+
+            var photos = _previewPhotos.Select(p => new Photo(
+                p.FileName, p.ContentType, p.Base64Data, DateTime.UtcNow
+            )).ToList();
+
+            var animalId = Guid.NewGuid();
+            var animal = new Animal
+            {
+                Id              = animalId,
+                TenantId        = DemoTenantId,
+                Name            = _form.Name.Trim(),
+                Tag             = _form.Tag.Trim().ToUpperInvariant(),
+                Species         = _form.Species,
+                Sex             = _form.Sex,
+                Breed           = string.IsNullOrWhiteSpace(_form.Breed) ? null : _form.Breed.Trim(),
+                DateOfBirth     = _form.DateOfBirth,
+                SireId          = _form.AcquisitionType == "Purchased" ? null
+                                  : (string.IsNullOrEmpty(_form.SireId) ? null : Guid.Parse(_form.SireId)),
+                DamId           = _form.AcquisitionType == "Purchased" ? null
+                                  : (string.IsNullOrEmpty(_form.DamId) ? null : Guid.Parse(_form.DamId)),
+                Status          = _form.Status,
+                Notes           = string.IsNullOrWhiteSpace(_form.Notes) ? null : _form.Notes.Trim(),
+                Photos          = photos,
+                AcquisitionType = string.IsNullOrEmpty(_form.AcquisitionType) ? null : _form.AcquisitionType,
+                PurchasedFrom   = string.IsNullOrWhiteSpace(_form.PurchasedFrom) ? null : _form.PurchasedFrom.Trim(),
+                AcquisitionDate = _form.AcquisitionDate,
+                CreatedAt       = DateTime.UtcNow
+            };
+
+            await Db.PutAsync("animals", animal);
+
+            // Save initial weight record if provided
+            if (_form.WeightMethod != "None")
+            {
+                double? kilograms = _form.WeightMethod switch
+                {
+                    "Scale"      => _form.WeightKg,
+                    "HeartGirth" => _form.WeightKg ?? _estimatedKg,
+                    _            => null
+                };
+
+                if (kilograms is > 0)
+                {
+                    double? hg = _form.WeightMethod == "HeartGirth" ? _form.HeartGirthCm : null;
+                    double? bl = _form.WeightMethod == "HeartGirth" ? _form.BodyLengthCm : null;
+
+                    var wr = new WeightRecord
+                    {
+                        Id           = Guid.NewGuid(),
+                        TenantId     = DemoTenantId,
+                        AnimalId     = animalId,
+                        WeighedAt    = _form.AcquisitionDate ?? _form.DateOfBirth ?? DateTime.Today,
+                        Kilograms    = kilograms.Value,
+                        Method       = _form.WeightMethod,
+                        HeartGirthCm = hg,
+                        BodyLengthCm = bl,
+                        Notes        = "Initial weight on registration",
+                        CreatedAt    = DateTime.UtcNow
+                    };
+                    await Db.PutAsync("weightRecords", wr);
+                }
+            }
+
+            Navigation.NavigateTo("/animals");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save: {ex.Message}";
+            _isSaving     = false;
+        }
+    }
+
+    private async Task HandlePhotoUpload(InputFileChangeEventArgs e)
+    {
+        const int maxPhotos = 5;
+        const long maxBytes = 5 * 1024 * 1024;
+
+        foreach (var file in e.GetMultipleFiles(maxPhotos))
+        {
+            if (_previewPhotos.Count >= maxPhotos) break;
+            try
+            {
+                var buffer = new byte[file.Size];
+                await file.OpenReadStream(maxBytes).ReadAsync(buffer);
+                _previewPhotos.Add(new PreviewPhoto
+                {
+                    FileName    = file.Name,
+                    ContentType = file.ContentType,
+                    Base64Data  = Convert.ToBase64String(buffer)
+                });
+            }
+            catch
+            {
+                _errorMessage = "One or more photos could not be loaded (check file size).";
+            }
+        }
+    }
+
+    private void RemovePhoto(PreviewPhoto photo) => _previewPhotos.Remove(photo);
+    private void GoBack() => Navigation.NavigateTo("/animals");
+
+    // --- Form model ---
+
+    private class AnimalFormModel
+    {
+        [Required(ErrorMessage = "Name is required")]
+        [StringLength(80, MinimumLength = 1, ErrorMessage = "Name must be 1–80 characters")]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Tag number is required")]
+        [StringLength(20, MinimumLength = 1, ErrorMessage = "Tag must be 1–20 characters")]
+        public string Tag { get; set; } = string.Empty;
+
+        public Species     Species         { get; set; } = Species.Goat;
+        public Sex         Sex             { get; set; } = Sex.Male;
+        public string?     Breed           { get; set; }
+        public DateTime?   DateOfBirth     { get; set; }
+        public string      SireId          { get; set; } = string.Empty;
+        public string      DamId           { get; set; } = string.Empty;
+        public AnimalStatus Status         { get; set; } = AnimalStatus.Active;
+        public string?     Notes           { get; set; }
+
+        // Origin
+        public string?     AcquisitionType { get; set; }   // "BornOnFarm" | "Purchased" | null
+        public string?     PurchasedFrom   { get; set; }
+        public DateTime?   AcquisitionDate { get; set; }
+
+        // Initial weight
+        public string      WeightMethod    { get; set; } = "None";  // "HeartGirth" | "Scale" | "None"
+        public double?     WeightKg        { get; set; }
+        public double?     HeartGirthCm    { get; set; }
+        public double?     BodyLengthCm    { get; set; }
+    }
+
+    private class PreviewPhoto
+    {
+        public string FileName    { get; set; } = string.Empty;
+        public string ContentType { get; set; } = string.Empty;
+        public string Base64Data  { get; set; } = string.Empty;
+        public string DataUrl     => $"data:{ContentType};base64,{Base64Data}";
+    }
+}

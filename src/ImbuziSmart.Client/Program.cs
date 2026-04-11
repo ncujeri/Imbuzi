@@ -24,6 +24,7 @@ builder.Services.AddScoped<ShadowLedgerService>();
 // Infrastructure services (require JS interop)
 builder.Services.AddScoped<IndexedDbService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<ThemeService>();
 
 // Seed data service
 builder.Services.AddScoped<SeedDataService>();

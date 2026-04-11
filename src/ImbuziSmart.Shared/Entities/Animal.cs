@@ -16,4 +16,13 @@ public class Animal : BaseEntity
     public AnimalStatus Status { get; set; } = AnimalStatus.Active;
     public List<Photo> Photos { get; set; } = new();
     public string? Notes { get; set; }
+
+    /// <summary>"BornOnFarm" or "Purchased". Null for legacy records.</summary>
+    public string? AcquisitionType { get; set; }
+
+    /// <summary>Seller or supplier name — populated when AcquisitionType is "Purchased".</summary>
+    public string? PurchasedFrom { get; set; }
+
+    /// <summary>Date the animal was acquired/purchased.</summary>
+    public DateTime? AcquisitionDate { get; set; }
 }

@@ -1,0 +1,277 @@
+@page "/heat/new"
+@using System.ComponentModel.DataAnnotations
+@inject NavigationManager Navigation
+@inject IndexedDbService Db
+
+<PageTitle>Log Heat - iMbuzi Smart</PageTitle>
+
+<div class="log-heat-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick="GoBack">&#8592; Back</button>
+        <h2 class="page-title">Log Heat</h2>
+    </div>
+
+    @if (_females.Count == 0 && _loaded)
+    {
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#128016;</span>
+            <p>No active does found. Add female animals first.</p>
+            <button class="btn-primary" @onclick='() => Navigation.NavigateTo("animals/new")'>
+                Add Animal
+            </button>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_form" OnValidSubmit="SaveAsync" class="heat-form">
+            <DataAnnotationsValidator />
+
+            <!-- Doe selector -->
+            <div class="form-section">
+                <h3 class="form-section-title">Select Doe</h3>
+
+                <div class="form-group">
+                    <label for="doe">Doe <span class="required">*</span></label>
+                    <InputSelect id="doe" @bind-Value="_form.AnimalId" class="form-select"
+                        @oninput="OnDoeChanged">
+                        <option value="">&#8212; Choose a doe &#8212;</option>
+                        @foreach (var doe in _females)
+                        {
+                            <option value="@doe.Id">@doe.Name (@doe.Tag)</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="@(() => _form.AnimalId)" class="validation-msg" />
+                </div>
+
+                @if (_selectedDoe is not null)
+                {
+                    <div class="doe-summary">
+                        <span class="doe-chip">@_selectedDoe.Breed ?? _selectedDoe.Species.ToString()</span>
+                        @if (_lastHeat is not null)
+                        {
+                            <span class="doe-chip chip-teal">
+                                Last heat: @_lastHeat.ObservedDate.ToString("dd MMM yyyy")
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="doe-chip chip-muted">No previous heat records</span>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- Observation details -->
+            <div class="form-section">
+                <h3 class="form-section-title">Observation Details</h3>
+
+                <div class="form-group">
+                    <label for="date">Date Observed <span class="required">*</span></label>
+                    <InputDate id="date" @bind-Value="_form.ObservedDate" class="form-input"
+                        max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    <ValidationMessage For="@(() => _form.ObservedDate)" class="validation-msg" />
+                </div>
+
+                <!-- Intensity — tap-to-select tiles -->
+                <div class="form-group">
+                    <label>Heat Intensity</label>
+                    <div class="intensity-grid">
+                        @foreach (var intensity in Enum.GetValues<HeatIntensity>())
+                        {
+                            var isSelected = _form.Intensity == intensity;
+                            <button type="button"
+                                class="intensity-tile @(isSelected ? "selected" : "")"
+                                @onclick="() => _form.Intensity = intensity">
+                                <span class="intensity-icon">@IntensityIcon(intensity)</span>
+                                <span class="intensity-label">@intensity</span>
+                                <span class="intensity-desc">@IntensityDesc(intensity)</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="signs">Signs Observed</label>
+                    <InputTextArea id="signs" @bind-Value="_form.Signs" class="form-textarea" rows="3"
+                        placeholder="e.g. Restless, mounting others, swollen vulva, clear discharge..." />
+                </div>
+            </div>
+
+            <!-- Prediction panel -->
+            @if (_form.ObservedDate != default)
+            {
+                <div class="prediction-card">
+                    <div class="prediction-row">
+                        <span class="prediction-label">&#128197; Observed</span>
+                        <span class="prediction-value">@_form.ObservedDate.ToString("dd MMM yyyy")</span>
+                    </div>
+                    <div class="prediction-divider"></div>
+                    <div class="prediction-row highlight">
+                        <span class="prediction-label">&#9200; Next expected heat</span>
+                        <span class="prediction-value">@_form.ObservedDate.AddDays(21).ToString("dd MMM yyyy")</span>
+                    </div>
+                    <div class="prediction-note">Based on 21-day cycle &bull; Set in Farm Settings</div>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="form-error-banner">&#9888; @_errorMessage</div>
+            }
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" @onclick="GoBack"
+                    disabled="@_isSaving">Cancel</button>
+                <button type="submit" class="btn-primary" disabled="@_isSaving">
+                    @(_isSaving ? "Saving\u2026" : "\uD83D\uDD25 Save Heat Log")
+                </button>
+            </div>
+        </EditForm>
+
+        <!-- Recent heat history for selected doe -->
+        @if (_recentRecords.Count > 0)
+        {
+            <div class="history-section">
+                <h3 class="history-title">Recent Heat History</h3>
+                @foreach (var rec in _recentRecords)
+                {
+                    <div class="history-card">
+                        <div class="history-main">
+                            <span class="history-date">@rec.ObservedDate.ToString("dd MMM yyyy")</span>
+                            @if (rec.Intensity.HasValue)
+                            {
+                                <span class="intensity-badge intensity-@rec.Intensity.ToString()!.ToLower()">
+                                    @IntensityIcon(rec.Intensity.Value) @rec.Intensity
+                                </span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(rec.Signs))
+                        {
+                            <p class="history-signs">@rec.Signs</p>
+                        }
+                        <span class="history-next">
+                            Next expected: @rec.NextExpectedHeat.ToString("dd MMM yyyy")
+                        </span>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+    private HeatFormModel _form = new();
+    private List<Animal> _females = new();
+    private Animal? _selectedDoe;
+    private HeatRecord? _lastHeat;
+    private List<HeatRecord> _recentRecords = new();
+    private bool _isSaving;
+    private bool _loaded;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var all = await Db.GetAllAsync<Animal>("animals");
+            _females = all
+                .Where(a => a.Sex == Sex.Female && a.Status == AnimalStatus.Active)
+                .OrderBy(a => a.Name)
+                .ToList();
+        }
+        catch { /* graceful empty state */ }
+        finally { _loaded = true; }
+    }
+
+    private async Task OnDoeChanged(ChangeEventArgs e)
+    {
+        _selectedDoe = null;
+        _lastHeat = null;
+        _recentRecords.Clear();
+
+        if (!string.IsNullOrEmpty(e.Value?.ToString()) &&
+            Guid.TryParse(e.Value.ToString(), out var id))
+        {
+            _selectedDoe = _females.FirstOrDefault(f => f.Id == id);
+            await LoadHeatHistoryAsync(id);
+        }
+    }
+
+    private async Task LoadHeatHistoryAsync(Guid doeId)
+    {
+        try
+        {
+            var allRecords = await Db.GetAllAsync<HeatRecord>("heatRecords");
+            _recentRecords = allRecords
+                .Where(r => r.AnimalId == doeId)
+                .OrderByDescending(r => r.ObservedDate)
+                .Take(5)
+                .ToList();
+
+            _lastHeat = _recentRecords.FirstOrDefault();
+        }
+        catch { }
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSaving = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var record = new HeatRecord
+            {
+                Id = Guid.NewGuid(),
+                TenantId = DemoTenantId,
+                AnimalId = Guid.Parse(_form.AnimalId),
+                ObservedDate = _form.ObservedDate,
+                Intensity = _form.Intensity,
+                Signs = string.IsNullOrWhiteSpace(_form.Signs) ? null : _form.Signs.Trim(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await Db.PutAsync("heatRecords", record);
+            Navigation.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save: {ex.Message}";
+            _isSaving = false;
+        }
+    }
+
+    private static string IntensityIcon(HeatIntensity intensity) => intensity switch
+    {
+        HeatIntensity.Mild     => "🌡",
+        HeatIntensity.Strong   => "🔥",
+        HeatIntensity.Standing => "⚡",
+        _                      => "❓"
+    };
+
+    private static string IntensityDesc(HeatIntensity intensity) => intensity switch
+    {
+        HeatIntensity.Mild     => "Restless, minor signs",
+        HeatIntensity.Strong   => "Mounting, vocalising",
+        HeatIntensity.Standing => "Standing heat, peak fertile",
+        _                      => string.Empty
+    };
+
+    private void GoBack() => Navigation.NavigateTo("/");
+
+    // --- Form model ---
+
+    private class HeatFormModel
+    {
+        [Required(ErrorMessage = "Please select a doe")]
+        public string AnimalId { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Observed date is required")]
+        public DateTime ObservedDate { get; set; } = DateTime.Today;
+
+        public HeatIntensity? Intensity { get; set; }
+        public string? Signs { get; set; }
+    }
+}

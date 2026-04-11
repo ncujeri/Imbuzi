@@ -1,11 +1,23 @@
 @inherits LayoutComponentBase
+@inject ThemeService Theme
+@implements IDisposable
 
 <div class="app-layout">
     <header class="app-header">
         <div class="header-content">
-            <span class="app-logo">🐐</span>
-            <h1 class="app-title">iMbuzi Smart</h1>
-            <a href="settings" class="settings-link" title="Settings">⚙️</a>
+            <a href="/" class="header-logo-link">
+                <img src="/images/logo-icon.png" alt="Home" class="app-logo-img"
+                    onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" />
+                <span class="app-logo-fallback" style="display:none">&#128016;</span>
+                <div class="header-brand">
+                    <h1 class="app-title">iMbuzi Smart</h1>
+                    <span class="app-tagline">Measure &amp; Manage Livestock</span>
+                </div>
+            </a>
+            <button class="theme-toggle" @onclick="ToggleTheme" title="@(Theme.IsDark ? "Switch to light mode" : "Switch to dark mode")">
+                @(Theme.IsDark ? "☀️" : "🌙")
+            </button>
+            <a href="settings" class="settings-link" title="Settings">&#9881;</a>
         </div>
     </header>
 
@@ -15,16 +27,35 @@
 
     <nav class="bottom-nav">
         <a href="/" class="nav-item">
-            <span class="nav-icon">🏠</span>
+            <span class="nav-icon">&#127968;</span>
             <span class="nav-label">Home</span>
         </a>
+        <a href="animals" class="nav-item">
+            <span class="nav-icon">&#128016;</span>
+            <span class="nav-label">Animals</span>
+        </a>
         <a href="passport" class="nav-item">
-            <span class="nav-icon">📋</span>
+            <span class="nav-icon">&#128203;</span>
             <span class="nav-label">Passport</span>
         </a>
         <a href="settings" class="nav-item">
-            <span class="nav-icon">⚙️</span>
+            <span class="nav-icon">&#9881;</span>
             <span class="nav-label">Settings</span>
         </a>
     </nav>
 </div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Theme.OnChange += StateHasChanged;
+            await Theme.InitAsync();
+        }
+    }
+
+    private async Task ToggleTheme() => await Theme.ToggleAsync();
+
+    public void Dispose() => Theme.OnChange -= StateHasChanged;
+}

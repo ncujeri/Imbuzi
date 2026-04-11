@@ -1,0 +1,403 @@
+@page "/animals/{AnimalId:guid}/edit"
+@using System.ComponentModel.DataAnnotations
+@inject NavigationManager Navigation
+@inject IndexedDbService Db
+@inject WeightCalculatorService WeightCalc
+
+<PageTitle>Edit Animal - iMbuzi Smart</PageTitle>
+
+<div class="add-animal-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick="GoBack">&#8592; Back</button>
+        <h2 class="page-title">Edit Animal</h2>
+    </div>
+
+    @if (!_loaded)
+    {
+        <div class="list-loading">Loading&#8230;</div>
+    }
+    else if (_notFound)
+    {
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#10060;</span>
+            <p>Animal not found.</p>
+            <button class="btn-primary" @onclick="GoBack">Back to list</button>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_form" OnValidSubmit="SaveAnimalAsync" class="animal-form">
+            <DataAnnotationsValidator />
+
+            <!-- Basic Info -->
+            <div class="form-section">
+                <h3 class="form-section-title">Basic Information</h3>
+
+                <div class="form-group">
+                    <label for="name">Name <span class="required">*</span></label>
+                    <InputText id="name" @bind-Value="_form.Name" class="form-input" placeholder="e.g. Themba" />
+                    <ValidationMessage For="@(() => _form.Name)" class="validation-msg" />
+                </div>
+
+                <div class="form-group">
+                    <label for="tag">Tag Number <span class="required">*</span></label>
+                    <InputText id="tag" @bind-Value="_form.Tag" class="form-input" placeholder="e.g. BK-003" />
+                    <ValidationMessage For="@(() => _form.Tag)" class="validation-msg" />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="species">Species <span class="required">*</span></label>
+                        <InputSelect id="species" @bind-Value="_form.Species" class="form-select">
+                            @foreach (var s in Enum.GetValues<Species>())
+                            {
+                                <option value="@s">@s</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sex">Sex <span class="required">*</span></label>
+                        <InputSelect id="sex" @bind-Value="_form.Sex" class="form-select">
+                            @foreach (var s in Enum.GetValues<Sex>())
+                            {
+                                <option value="@s">@s</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="breed">Breed</label>
+                    <InputText id="breed" @bind-Value="_form.Breed" class="form-input"
+                        placeholder="e.g. Boer, Savanna, Indigenous Veld" />
+                </div>
+            </div>
+
+            <!-- Origin -->
+            <div class="form-section">
+                <h3 class="form-section-title">Origin</h3>
+
+                <div class="form-group">
+                    <label>How was this animal acquired?</label>
+                    <div class="method-toggle">
+                        <button type="button"
+                            class="method-btn @(_form.AcquisitionType == "BornOnFarm" ? "selected" : "")"
+                            @onclick='() => _form.AcquisitionType = "BornOnFarm"'>
+                            <span class="method-icon">&#127968;</span>
+                            <span class="method-label">Born on Farm</span>
+                            <span class="method-desc">Parents known</span>
+                        </button>
+                        <button type="button"
+                            class="method-btn @(_form.AcquisitionType == "Purchased" ? "selected" : "")"
+                            @onclick='() => _form.AcquisitionType = "Purchased"'>
+                            <span class="method-icon">&#128179;</span>
+                            <span class="method-label">Purchased</span>
+                            <span class="method-desc">Bought externally</span>
+                        </button>
+                    </div>
+                </div>
+
+                @if (_form.AcquisitionType == "Purchased")
+                {
+                    <div class="form-group">
+                        <label for="purchasedFrom">Purchased From</label>
+                        <InputText id="purchasedFrom" @bind-Value="_form.PurchasedFrom" class="form-input"
+                            placeholder="e.g. Mokoena Farm, Local auction" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="acquiredOn">Date Purchased</label>
+                        <InputDate id="acquiredOn" @bind-Value="_form.AcquisitionDate" class="form-input"
+                            max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dob">Date of Birth (if known)</label>
+                        <InputDate id="dob" @bind-Value="_form.DateOfBirth" class="form-input" />
+                        <span class="field-hint">Leave blank if unknown</span>
+                    </div>
+
+                    <div class="purchased-notice">
+                        <span class="notice-icon">&#8505;</span>
+                        <span>Parent records are not required for purchased animals.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label for="dob">Date of Birth</label>
+                        <InputDate id="dob" @bind-Value="_form.DateOfBirth" class="form-input" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sire">Sire (Father)</label>
+                        <InputSelect id="sire" @bind-Value="_form.SireId" class="form-select">
+                            <option value="">&#8212; Unknown / None &#8212;</option>
+                            @foreach (var male in _males)
+                            {
+                                <option value="@male.Id">@male.Name (@male.Tag)</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dam">Dam (Mother)</label>
+                        <InputSelect id="dam" @bind-Value="_form.DamId" class="form-select">
+                            <option value="">&#8212; Unknown / None &#8212;</option>
+                            @foreach (var female in _females)
+                            {
+                                <option value="@female.Id">@female.Name (@female.Tag)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                }
+            </div>
+
+            <!-- Status & Notes -->
+            <div class="form-section">
+                <h3 class="form-section-title">Status &amp; Notes</h3>
+
+                <div class="form-group">
+                    <label for="status">Status</label>
+                    <InputSelect id="status" @bind-Value="_form.Status" class="form-select">
+                        @foreach (var s in Enum.GetValues<AnimalStatus>())
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <InputTextArea id="notes" @bind-Value="_form.Notes" class="form-textarea" rows="3"
+                        placeholder="Any observations, health history, or special notes..." />
+                </div>
+            </div>
+
+            <!-- Photos -->
+            <div class="form-section">
+                <h3 class="form-section-title">Photos</h3>
+
+                @if (_existingPhotos.Count > 0)
+                {
+                    <div class="photo-preview-grid" style="margin-bottom:0.75rem">
+                        @foreach (var photo in _existingPhotos)
+                        {
+                            <div class="photo-preview-item">
+                                <img src="data:@photo.ContentType;base64,@photo.Base64Data" alt="@photo.FileName" />
+                                <button type="button" class="remove-photo-btn"
+                                    @onclick="() => _existingPhotos.Remove(photo)">&#215;</button>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="photo-upload-area">
+                    <InputFile id="photo-input" OnChange="HandlePhotoUpload" accept="image/*" multiple
+                        class="photo-file-input" />
+                    <label for="photo-input" class="photo-label">
+                        <span class="photo-upload-icon">&#128247;</span>
+                        <span class="photo-upload-text">Add more photos</span>
+                        <span class="photo-upload-sub">Camera or gallery &bull; Max 5 total, 5 MB each</span>
+                    </label>
+                </div>
+
+                @if (_newPhotos.Count > 0)
+                {
+                    <div class="photo-preview-grid">
+                        @foreach (var photo in _newPhotos)
+                        {
+                            <div class="photo-preview-item">
+                                <img src="@photo.DataUrl" alt="Preview" />
+                                <button type="button" class="remove-photo-btn"
+                                    @onclick="() => _newPhotos.Remove(photo)">&#215;</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="form-error-banner">&#9888; @_errorMessage</div>
+            }
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" @onclick="GoBack" disabled="@_isSaving">Cancel</button>
+                <button type="submit" class="btn-primary" disabled="@_isSaving">
+                    @(_isSaving ? "Saving\u2026" : "\u2713 Save Changes")
+                </button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid AnimalId { get; set; }
+
+    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+    private EditFormModel _form = new();
+    private List<Animal> _males = new();
+    private List<Animal> _females = new();
+    private List<Photo> _existingPhotos = new();
+    private List<PreviewPhoto> _newPhotos = new();
+    private Animal? _original;
+    private bool _loaded;
+    private bool _notFound;
+    private bool _isSaving;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _original = await Db.GetAsync<Animal>("animals", AnimalId);
+            if (_original is null)
+            {
+                _notFound = true;
+                return;
+            }
+
+            // Pre-fill form
+            _form.Name            = _original.Name;
+            _form.Tag             = _original.Tag;
+            _form.Species         = _original.Species;
+            _form.Sex             = _original.Sex;
+            _form.Breed           = _original.Breed;
+            _form.DateOfBirth     = _original.DateOfBirth;
+            _form.SireId          = _original.SireId?.ToString() ?? string.Empty;
+            _form.DamId           = _original.DamId?.ToString() ?? string.Empty;
+            _form.Status          = _original.Status;
+            _form.Notes           = _original.Notes;
+            _form.AcquisitionType = _original.AcquisitionType;
+            _form.PurchasedFrom   = _original.PurchasedFrom;
+            _form.AcquisitionDate = _original.AcquisitionDate;
+            _existingPhotos       = _original.Photos.ToList();
+
+            var all = await Db.GetAllAsync<Animal>("animals");
+            _males   = all.Where(a => a.Sex == Sex.Male   && a.Status == AnimalStatus.Active && a.Id != AnimalId).ToList();
+            _females = all.Where(a => a.Sex == Sex.Female && a.Status == AnimalStatus.Active && a.Id != AnimalId).ToList();
+        }
+        catch { }
+        finally { _loaded = true; }
+    }
+
+    private async Task SaveAnimalAsync()
+    {
+        _isSaving     = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            // Tag uniqueness — allow same tag if it belongs to this animal
+            var existing = await Db.GetAllAsync<Animal>("animals");
+            if (existing.Any(a => a.Id != AnimalId &&
+                a.Tag.Equals(_form.Tag.Trim(), StringComparison.OrdinalIgnoreCase)))
+            {
+                _errorMessage = $"Tag \"{_form.Tag.Trim()}\" is already used by another animal.";
+                _isSaving     = false;
+                return;
+            }
+
+            var allPhotos = _existingPhotos
+                .Concat(_newPhotos.Select(p => new Photo(p.FileName, p.ContentType, p.Base64Data, DateTime.UtcNow)))
+                .ToList();
+
+            var animal = new Animal
+            {
+                Id              = AnimalId,
+                TenantId        = _original!.TenantId,
+                Name            = _form.Name.Trim(),
+                Tag             = _form.Tag.Trim().ToUpperInvariant(),
+                Species         = _form.Species,
+                Sex             = _form.Sex,
+                Breed           = string.IsNullOrWhiteSpace(_form.Breed) ? null : _form.Breed.Trim(),
+                DateOfBirth     = _form.DateOfBirth,
+                SireId          = _form.AcquisitionType == "Purchased" ? null
+                                  : (string.IsNullOrEmpty(_form.SireId) ? null : Guid.Parse(_form.SireId)),
+                DamId           = _form.AcquisitionType == "Purchased" ? null
+                                  : (string.IsNullOrEmpty(_form.DamId) ? null : Guid.Parse(_form.DamId)),
+                Status          = _form.Status,
+                Notes           = string.IsNullOrWhiteSpace(_form.Notes) ? null : _form.Notes.Trim(),
+                Photos          = allPhotos,
+                AcquisitionType = string.IsNullOrEmpty(_form.AcquisitionType) ? null : _form.AcquisitionType,
+                PurchasedFrom   = string.IsNullOrWhiteSpace(_form.PurchasedFrom) ? null : _form.PurchasedFrom.Trim(),
+                AcquisitionDate = _form.AcquisitionDate,
+                CreatedAt       = _original!.CreatedAt,
+                UpdatedAt       = DateTime.UtcNow
+            };
+
+            await Db.PutAsync("animals", animal);
+            Navigation.NavigateTo("/animals");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save: {ex.Message}";
+            _isSaving     = false;
+        }
+    }
+
+    private async Task HandlePhotoUpload(InputFileChangeEventArgs e)
+    {
+        const int maxPhotos = 5;
+        const long maxBytes = 5 * 1024 * 1024;
+        var totalExisting = _existingPhotos.Count + _newPhotos.Count;
+
+        foreach (var file in e.GetMultipleFiles(maxPhotos))
+        {
+            if (totalExisting + _newPhotos.Count >= maxPhotos) break;
+            try
+            {
+                var buffer = new byte[file.Size];
+                await file.OpenReadStream(maxBytes).ReadAsync(buffer);
+                _newPhotos.Add(new PreviewPhoto
+                {
+                    FileName    = file.Name,
+                    ContentType = file.ContentType,
+                    Base64Data  = Convert.ToBase64String(buffer)
+                });
+            }
+            catch
+            {
+                _errorMessage = "One or more photos could not be loaded (check file size).";
+            }
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/animals");
+
+    // --- Form model ---
+
+    private class EditFormModel
+    {
+        [Required(ErrorMessage = "Name is required")]
+        [StringLength(80, MinimumLength = 1)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Tag number is required")]
+        [StringLength(20, MinimumLength = 1)]
+        public string Tag { get; set; } = string.Empty;
+
+        public Species      Species         { get; set; } = Species.Goat;
+        public Sex          Sex             { get; set; } = Sex.Male;
+        public string?      Breed           { get; set; }
+        public DateTime?    DateOfBirth     { get; set; }
+        public string       SireId          { get; set; } = string.Empty;
+        public string       DamId           { get; set; } = string.Empty;
+        public AnimalStatus Status          { get; set; } = AnimalStatus.Active;
+        public string?      Notes           { get; set; }
+        public string?      AcquisitionType { get; set; }
+        public string?      PurchasedFrom   { get; set; }
+        public DateTime?    AcquisitionDate { get; set; }
+    }
+
+    private class PreviewPhoto
+    {
+        public string FileName    { get; set; } = string.Empty;
+        public string ContentType { get; set; } = string.Empty;
+        public string Base64Data  { get; set; } = string.Empty;
+        public string DataUrl     => $"data:{ContentType};base64,{Base64Data}";
+    }
+}
