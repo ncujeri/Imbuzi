@@ -1,0 +1,134 @@
+@page "/settings"
+@inject IndexedDbService Db
+
+<PageTitle>Settings - iMbuzi Smart</PageTitle>
+
+<div class="settings-page">
+    <h2 class="settings-title">Farm Settings</h2>
+
+    @if (_settings is not null)
+    {
+        <div class="settings-section">
+            <h3>Features</h3>
+
+            <div class="setting-row">
+                <label>Inbreeding Check</label>
+                <input type="checkbox" @bind="_settings.EnableInbreedingCheck" @bind:after="SaveSettings" />
+            </div>
+
+            <div class="setting-row">
+                <label>Heat Cycle Tracking</label>
+                <input type="checkbox" @bind="_settings.EnableHeatTracking" @bind:after="SaveSettings" />
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>Notifications</h3>
+
+            <div class="setting-row">
+                <label>Push Notifications</label>
+                <input type="checkbox" @bind="_settings.EnablePushNotifications" @bind:after="SaveSettings" />
+            </div>
+
+            <div class="setting-row">
+                <label>Kidding Watch Alerts</label>
+                <input type="checkbox" @bind="_settings.NotifyKiddingWatch" @bind:after="SaveSettings" />
+            </div>
+
+            <div class="setting-row">
+                <label>Weaning Alerts</label>
+                <input type="checkbox" @bind="_settings.NotifyWeaning" @bind:after="SaveSettings" />
+            </div>
+
+            <div class="setting-row">
+                <label>Withdrawal Expiry Alerts</label>
+                <input type="checkbox" @bind="_settings.NotifyWithdrawalExpiry" @bind:after="SaveSettings" />
+            </div>
+
+            <div class="setting-row">
+                <label>Heat Cycle Alerts</label>
+                <input type="checkbox" @bind="_settings.NotifyHeatCycle" @bind:after="SaveSettings" />
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>Timing</h3>
+
+            <div class="setting-row">
+                <label>Kidding Watch Days Before</label>
+                <input type="number" min="1" max="15" @bind="_settings.KiddingWatchDaysBefore" @bind:after="SaveSettings" />
+            </div>
+
+            <div class="setting-row">
+                <label>Heat Cycle Length (days)</label>
+                <input type="number" min="18" max="24" @bind="_settings.HeatCycleDays" @bind:after="SaveSettings" />
+            </div>
+
+            <div class="setting-row">
+                <label>Heat Alert Days Before</label>
+                <input type="number" min="1" max="5" @bind="_settings.HeatAlertDaysBefore" @bind:after="SaveSettings" />
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>Display</h3>
+
+            <div class="setting-row">
+                <label>Currency</label>
+                <select @bind="_settings.Currency" @bind:after="SaveSettings">
+                    <option value="ZAR">ZAR (South African Rand)</option>
+                    <option value="USD">USD (US Dollar)</option>
+                    <option value="EUR">EUR (Euro)</option>
+                    <option value="GBP">GBP (British Pound)</option>
+                </select>
+            </div>
+        </div>
+
+        @if (_saved)
+        {
+            <div class="save-indicator">✅ Settings saved</div>
+        }
+    }
+    else
+    {
+        <p class="loading">Loading settings...</p>
+    }
+</div>
+
+@code {
+    private FarmSettings? _settings;
+    private bool _saved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var all = await Db.GetAllAsync<FarmSettings>("farmSettings");
+            _settings = all.FirstOrDefault() ?? new FarmSettings();
+        }
+        catch
+        {
+            _settings = new FarmSettings();
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        if (_settings is null) return;
+
+        try
+        {
+            await Db.PutAsync("farmSettings", _settings);
+            _saved = true;
+            StateHasChanged();
+
+            await Task.Delay(1500);
+            _saved = false;
+            StateHasChanged();
+        }
+        catch
+        {
+            // Silently handle — settings will be default next time
+        }
+    }
+}

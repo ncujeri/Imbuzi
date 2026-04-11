@@ -1,0 +1,108 @@
+@page "/passport"
+@page "/passport/{AnimalId:guid}"
+@inject IndexedDbService Db
+
+<PageTitle>Digital Passport - iMbuzi Smart</PageTitle>
+
+<div class="passport-page">
+    @if (AnimalId.HasValue && _animal is not null)
+    {
+        <div class="passport-card">
+            <div class="passport-header">
+                <span class="passport-icon">🐐</span>
+                <div>
+                    <h2>@_animal.Name</h2>
+                    <span class="tag-label">Tag: @_animal.Tag</span>
+                </div>
+            </div>
+
+            <div class="passport-section">
+                <h3>Details</h3>
+                <div class="detail-row"><span>Species</span><span>@_animal.Species</span></div>
+                <div class="detail-row"><span>Breed</span><span>@(_animal.Breed ?? "Unknown")</span></div>
+                <div class="detail-row"><span>Sex</span><span>@_animal.Sex</span></div>
+                <div class="detail-row"><span>Date of Birth</span><span>@(_animal.DateOfBirth?.ToShortDateString() ?? "Unknown")</span></div>
+                <div class="detail-row"><span>Status</span><span class="status-badge">@_animal.Status</span></div>
+            </div>
+
+            @if (_animal.Photos.Count > 0)
+            {
+                <div class="passport-section">
+                    <h3>Photos (@_animal.Photos.Count)</h3>
+                    <div class="photo-grid">
+                        @foreach (var photo in _animal.Photos)
+                        {
+                            <img src="data:@photo.ContentType;base64,@photo.Base64Data" alt="@photo.FileName" class="passport-photo" />
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (_animal.Notes is not null)
+            {
+                <div class="passport-section">
+                    <h3>Notes</h3>
+                    <p>@_animal.Notes</p>
+                </div>
+            }
+        </div>
+    }
+    else if (!AnimalId.HasValue)
+    {
+        <div class="passport-select">
+            <h2>Digital Passport</h2>
+            <p>Select an animal to view its passport.</p>
+
+            @if (_animals.Count > 0)
+            {
+                <div class="animal-list">
+                    @foreach (var animal in _animals)
+                    {
+                        <a href="passport/@animal.Id" class="animal-card">
+                            <span class="animal-icon">🐐</span>
+                            <div>
+                                <strong>@animal.Name</strong>
+                                <span class="tag-small">@animal.Tag</span>
+                            </div>
+                            <span class="status-badge">@animal.Status</span>
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="empty-state">No animals registered yet. Add your first animal from the dashboard.</p>
+            }
+        </div>
+    }
+    else
+    {
+        <p class="loading">Loading...</p>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid? AnimalId { get; set; }
+
+    private Animal? _animal;
+    private List<Animal> _animals = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (AnimalId.HasValue)
+            {
+                _animal = await Db.GetAsync<Animal>("animals", AnimalId.Value);
+            }
+            else
+            {
+                _animals = await Db.GetAllAsync<Animal>("animals");
+            }
+        }
+        catch
+        {
+            // Handle gracefully on first load with empty DB
+        }
+    }
+}

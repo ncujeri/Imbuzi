@@ -1,0 +1,165 @@
+@page "/settings"
+@inject IndexedDbService Db
+
+<PageTitle>Settings — iMbuzi Smart</PageTitle>
+
+<div class="settings-page">
+    <h2 class="settings-title">Farm Settings</h2>
+
+    <FluentCard Style="background: rgba(255,255,255,0.05); margin-bottom: 1rem;">
+        <h3 style="color: #e94560; margin-bottom: 1rem;">Breeding Rules</h3>
+
+        <div class="setting-row">
+            <label>Inbreeding Check</label>
+            <FluentSwitch @bind-Value="_settings.EnableInbreedingCheck"
+                          @bind-Value:after="SaveAsync"
+                          Label="@(_settings.EnableInbreedingCheck ? "On" : "Off")" />
+        </div>
+
+        <div class="setting-row">
+            <label>Heat Cycle Tracking</label>
+            <FluentSwitch @bind-Value="_settings.EnableHeatTracking"
+                          @bind-Value:after="SaveAsync"
+                          Label="@(_settings.EnableHeatTracking ? "On" : "Off")" />
+        </div>
+
+        @if (_settings.EnableHeatTracking)
+        {
+            <div class="setting-row">
+                <label>Heat Cycle Length (days)</label>
+                <FluentNumberField @bind-Value="_settings.HeatCycleDays"
+                                   @bind-Value:after="SaveAsync"
+                                   Min="18" Max="24" />
+            </div>
+        }
+    </FluentCard>
+
+    <FluentCard Style="background: rgba(255,255,255,0.05); margin-bottom: 1rem;">
+        <h3 style="color: #e94560; margin-bottom: 1rem;">Notifications</h3>
+
+        <div class="setting-row">
+            <label>Push Notifications</label>
+            <FluentSwitch @bind-Value="_settings.EnablePushNotifications"
+                          @bind-Value:after="OnPushToggled"
+                          Label="@(_settings.EnablePushNotifications ? "On" : "Off")" />
+        </div>
+
+        <div class="setting-row">
+            <label>Kidding Watch Alerts</label>
+            <FluentSwitch @bind-Value="_settings.NotifyKiddingWatch"
+                          @bind-Value:after="SaveAsync"
+                          Label="@(_settings.NotifyKiddingWatch ? "On" : "Off")" />
+        </div>
+
+        @if (_settings.NotifyKiddingWatch)
+        {
+            <div class="setting-row">
+                <label>Days Before Kidding to Alert</label>
+                <FluentNumberField @bind-Value="_settings.KiddingWatchDaysBefore"
+                                   @bind-Value:after="SaveAsync"
+                                   Min="1" Max="15" />
+            </div>
+        }
+
+        <div class="setting-row">
+            <label>Weaning Alerts</label>
+            <FluentSwitch @bind-Value="_settings.NotifyWeaning"
+                          @bind-Value:after="SaveAsync"
+                          Label="@(_settings.NotifyWeaning ? "On" : "Off")" />
+        </div>
+
+        <div class="setting-row">
+            <label>Withdrawal Expiry Alerts</label>
+            <FluentSwitch @bind-Value="_settings.NotifyWithdrawalExpiry"
+                          @bind-Value:after="SaveAsync"
+                          Label="@(_settings.NotifyWithdrawalExpiry ? "On" : "Off")" />
+        </div>
+
+        @if (_settings.EnableHeatTracking)
+        {
+            <div class="setting-row">
+                <label>Heat Cycle Alerts</label>
+                <FluentSwitch @bind-Value="_settings.NotifyHeatCycle"
+                              @bind-Value:after="SaveAsync"
+                              Label="@(_settings.NotifyHeatCycle ? "On" : "Off")" />
+            </div>
+
+            @if (_settings.NotifyHeatCycle)
+            {
+                <div class="setting-row">
+                    <label>Days Before Heat to Alert</label>
+                    <FluentNumberField @bind-Value="_settings.HeatAlertDaysBefore"
+                                       @bind-Value:after="SaveAsync"
+                                       Min="1" Max="5" />
+                </div>
+            }
+        }
+    </FluentCard>
+
+    <FluentCard Style="background: rgba(255,255,255,0.05); margin-bottom: 1rem;">
+        <h3 style="color: #e94560; margin-bottom: 1rem;">Regional</h3>
+
+        <div class="setting-row">
+            <label>Currency</label>
+            <FluentSelect @bind-Value="_settings.Currency" @bind-Value:after="SaveAsync">
+                <FluentOption Value="ZAR">ZAR (South African Rand)</FluentOption>
+                <FluentOption Value="USD">USD (US Dollar)</FluentOption>
+                <FluentOption Value="EUR">EUR (Euro)</FluentOption>
+                <FluentOption Value="GBP">GBP (British Pound)</FluentOption>
+                <FluentOption Value="BWP">BWP (Botswana Pula)</FluentOption>
+                <FluentOption Value="NAD">NAD (Namibian Dollar)</FluentOption>
+            </FluentSelect>
+        </div>
+    </FluentCard>
+
+    @if (_saved)
+    {
+        <div style="text-align: center; color: #2ecc71; margin-top: 1rem;">
+            Settings saved
+        </div>
+    }
+</div>
+
+@code {
+    private FarmSettings _settings = new();
+    private bool _saved;
+
+    [Inject] private NotificationService Notifications { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var list = await Db.GetAllAsync<FarmSettings>("farmSettings");
+            _settings = list.FirstOrDefault() ?? new FarmSettings();
+        }
+        catch
+        {
+            // Fallback to defaults if IndexedDB unavailable
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _settings.UpdatedAt = DateTime.UtcNow;
+        await Db.PutAsync("farmSettings", _settings);
+        _saved = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        _saved = false;
+        StateHasChanged();
+    }
+
+    private async Task OnPushToggled()
+    {
+        if (_settings.EnablePushNotifications)
+        {
+            var granted = await Notifications.RequestPermissionAsync();
+            if (!granted)
+            {
+                _settings.EnablePushNotifications = false;
+            }
+        }
+        await SaveAsync();
+    }
+}

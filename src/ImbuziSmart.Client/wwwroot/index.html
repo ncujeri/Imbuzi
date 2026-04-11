@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#e94560" />
+    <meta name="description" content="iMbuzi Smart - Offline-first livestock management for goat farmers" />
+
+    <title>iMbuzi Smart</title>
+    <base href="/" />
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link href="ImbuziSmart.Client.styles.css" rel="stylesheet" />
+</head>
+
+<body>
+    <div id="app">
+        <div class="loading-screen">
+            <span class="loading-icon">🐐</span>
+            <div class="loading-text">iMbuzi Smart</div>
+            <div class="loading-sub">Loading...</div>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
+
+    <script src="js/indexedDb.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script>navigator.serviceWorker.register('service-worker.js');</script>
+    <script>
+        window.imbuziNotify = {
+            getPermission: () => typeof Notification !== 'undefined' ? Notification.permission : 'denied',
+            send: (title, body) => {
+                if (Notification.permission === 'granted') {
+                    new Notification(title, { body: body, icon: 'icon-192.png' });
+                }
+            }
+        };
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,93 @@
+.quick-log-dashboard {
+    padding: 1rem;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.dashboard-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 1.5rem;
+    color: #ffffff;
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+@media (min-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.alerts-section {
+    margin-top: 2rem;
+    padding: 1rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.alerts-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 0.75rem;
+}
+
+.alert-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    color: #ffffff;
+}
+
+.alert-card.kidding-watch {
+    background: rgba(231, 76, 60, 0.2);
+    border-left: 4px solid #e74c3c;
+}
+
+.alert-card.weaning {
+    background: rgba(52, 152, 219, 0.2);
+    border-left: 4px solid #3498db;
+}
+
+.alert-animal {
+    font-weight: 600;
+}
+
+.alert-detail {
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+
+.connectivity-indicator {
+    text-align: center;
+    padding: 0.75rem;
+    margin-top: 1.5rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #ffffff;
+}
+
+.connectivity-indicator.online {
+    background: rgba(46, 204, 113, 0.15);
+}
+
+.connectivity-indicator.offline {
+    background: rgba(231, 76, 60, 0.15);
+}

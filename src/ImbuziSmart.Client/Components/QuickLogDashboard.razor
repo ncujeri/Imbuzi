@@ -1,0 +1,123 @@
+@inject NavigationManager Navigation
+@inject GestationTimerService GestationTimer
+@inject IndexedDbService Db
+
+<div class="quick-log-dashboard">
+    <h2 class="dashboard-title">Quick Log</h2>
+
+    <div class="dashboard-grid">
+        <QuickLogButton
+            Icon="🐐"
+            Label="New Animal"
+            Color="#2ecc71"
+            OnClick="@(() => NavigateTo("animals/new"))" />
+
+        <QuickLogButton
+            Icon="💉"
+            Label="Medical Log"
+            Color="#e74c3c"
+            OnClick="@(() => NavigateTo("medical/new"))" />
+
+        <QuickLogButton
+            Icon="⚖️"
+            Label="Weigh Animal"
+            Color="#3498db"
+            OnClick="@(() => NavigateTo("weight/new"))" />
+
+        <QuickLogButton
+            Icon="🤝"
+            Label="Record Mating"
+            Color="#9b59b6"
+            OnClick="@(() => NavigateTo("mating/new"))" />
+
+        <QuickLogButton
+            Icon="🔥"
+            Label="Log Heat"
+            Color="#e91e8c"
+            OnClick="@(() => NavigateTo("heat/new"))" />
+
+        <QuickLogButton
+            Icon="💰"
+            Label="Log Cost"
+            Color="#f39c12"
+            OnClick="@(() => NavigateTo("cost/new"))" />
+
+        <QuickLogButton
+            Icon="📋"
+            Label="Digital Passport"
+            Color="#1abc9c"
+            OnClick="@(() => NavigateTo("passport"))" />
+    </div>
+
+    @if (_kiddingWatchAlerts.Count > 0)
+    {
+        <div class="alerts-section">
+            <h3 class="alerts-title">⚠️ Kidding Watch</h3>
+            @foreach (var alert in _kiddingWatchAlerts)
+            {
+                <div class="alert-card kidding-watch">
+                    <span class="alert-animal">Doe @alert.DoeId.ToString()[..8]</span>
+                    <span class="alert-detail">@alert.DaysRemaining days remaining</span>
+                </div>
+            }
+        </div>
+    }
+
+    @if (_weaningAlerts.Count > 0)
+    {
+        <div class="alerts-section">
+            <h3 class="alerts-title">🍼 Weaning Due</h3>
+            @foreach (var alert in _weaningAlerts)
+            {
+                <div class="alert-card weaning">
+                    <span class="alert-animal">Doe @alert.DoeId.ToString()[..8]</span>
+                    <span class="alert-detail">Weaning due @alert.WeaningDate?.ToShortDateString()</span>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="connectivity-indicator @(_isOnline ? "online" : "offline")">
+        @(_isOnline ? "🟢 Online — syncing" : "🔴 Offline — data saved locally")
+    </div>
+</div>
+
+@code {
+    private List<GestationTimerService.GestationStatus> _kiddingWatchAlerts = new();
+    private List<GestationTimerService.GestationStatus> _weaningAlerts = new();
+    private bool _isOnline;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _isOnline = await Db.IsOnlineAsync();
+            await LoadAlertsAsync();
+        }
+        catch
+        {
+            // IndexedDB may not be initialized on first load
+        }
+    }
+
+    private async Task LoadAlertsAsync()
+    {
+        try
+        {
+            var matingRecords = await Db.GetAllAsync<MatingRecord>("matingRecords");
+
+            var activeGestations = GestationTimer.GetActiveGestations(matingRecords);
+            _kiddingWatchAlerts = activeGestations
+                .Where(s => s.IsOnKiddingWatch)
+                .ToList();
+
+            _weaningAlerts = GestationTimer.GetWeaningAlerts(matingRecords).ToList();
+        }
+        catch
+        {
+            // Gracefully handle when no data exists yet
+        }
+    }
+
+    private void NavigateTo(string path) => Navigation.NavigateTo(path);
+}
