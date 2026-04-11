@@ -1,6 +1,0 @@
-@ImbuziSmart.Server_HostAddress = http://localhost:5143
-
-GET {{ImbuziSmart.Server_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
