@@ -25,4 +25,13 @@ builder.Services.AddScoped<ShadowLedgerService>();
 builder.Services.AddScoped<IndexedDbService>();
 builder.Services.AddScoped<NotificationService>();
 
-await builder.Build().RunAsync();
+// Seed data service
+builder.Services.AddScoped<SeedDataService>();
+
+var host = builder.Build();
+
+// Seed demo data into IndexedDB on first launch
+var seedService = host.Services.GetRequiredService<SeedDataService>();
+await seedService.SeedIfEmptyAsync();
+
+await host.RunAsync();

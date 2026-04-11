@@ -79,6 +79,14 @@ public class ImbuziDbContext : DbContext
             entity.HasIndex(f => f.TenantId).IsUnique();
             entity.Property(f => f.Currency).HasMaxLength(3).HasDefaultValue("ZAR");
         });
+
+        // Seed demo data
+        modelBuilder.Entity<Animal>().HasData(SeedData.GetAnimals());
+        modelBuilder.Entity<MatingRecord>().HasData(SeedData.GetMatingRecords());
+        modelBuilder.Entity<HeatRecord>().HasData(SeedData.GetHeatRecords());
+        modelBuilder.Entity<MedicalLog>().HasData(SeedData.GetMedicalLogs());
+        modelBuilder.Entity<CostEntry>().HasData(SeedData.GetCostEntries());
+        modelBuilder.Entity<FarmSettings>().HasData(SeedData.GetFarmSettings());
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
