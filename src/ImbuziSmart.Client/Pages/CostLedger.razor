@@ -1,0 +1,284 @@
+@page "/cost/ledger"
+@inject NavigationManager Navigation
+@inject IndexedDbService Db
+@inject ShadowLedgerService Ledger
+
+<PageTitle>Cost Ledger - iMbuzi Smart</PageTitle>
+
+<div class="cost-ledger-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick='() => Navigation.NavigateTo("/")'>&#8592; Back</button>
+        <h2 class="page-title">Cost Ledger</h2>
+        <a href="/cost/new" class="add-cost-link">+ Log Cost</a>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="summary-row">
+        <div class="summary-card">
+            <span class="summary-label">All Time</span>
+            <span class="summary-value">R @_totalAllTime.ToString("N2")</span>
+        </div>
+        <div class="summary-card">
+            <span class="summary-label">This Month</span>
+            <span class="summary-value">R @_totalThisMonth.ToString("N2")</span>
+        </div>
+        <div class="summary-card">
+            <span class="summary-label">Entries</span>
+            <span class="summary-value">@_all.Count</span>
+        </div>
+    </div>
+
+    <!-- Category breakdown for filtered period -->
+    @if (_categoryTotals.Count > 0)
+    {
+        <div class="breakdown-section">
+            <h3 class="breakdown-title">Breakdown</h3>
+            @foreach (var (cat, total) in _categoryTotals)
+            {
+                var pct = _filteredTotal > 0 ? (double)total / (double)_filteredTotal * 100 : 0;
+                <div class="breakdown-row">
+                    <span class="breakdown-cat">
+                        @LogCost.CategoryEmoji(cat) @cat
+                    </span>
+                    <div class="breakdown-bar-wrap">
+                        <div class="breakdown-bar" style="width:@pct.ToString("0")%"></div>
+                    </div>
+                    <span class="breakdown-amount">R @total.ToString("N2")</span>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Filters -->
+    <div class="filter-section">
+        <div class="period-tabs">
+            <button class="period-tab @(_activePeriod == "month"   ? "active" : "")" @onclick='() => SetPeriod("month")'>Month</button>
+            <button class="period-tab @(_activePeriod == "quarter" ? "active" : "")" @onclick='() => SetPeriod("quarter")'>3 Months</button>
+            <button class="period-tab @(_activePeriod == "year"    ? "active" : "")" @onclick='() => SetPeriod("year")'>Year</button>
+            <button class="period-tab @(_activePeriod == "all"     ? "active" : "")" @onclick='() => SetPeriod("all")'>All</button>
+        </div>
+        <div class="filter-selects">
+            <select class="filter-select" @onchange="OnCategoryFilter">
+                <option value="">All categories</option>
+                @foreach (var cat in Enum.GetValues<CostCategory>())
+                {
+                    <option value="@cat">@LogCost.CategoryEmoji(cat) @cat</option>
+                }
+            </select>
+            <select class="filter-select" @onchange="OnAnimalFilter">
+                <option value="">All animals</option>
+                <option value="farm">Farm-wide only</option>
+                @foreach (var a in _animals)
+                {
+                    <option value="@a.Id">@a.Name</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <!-- Entries -->
+    @if (!_loaded)
+    {
+        <p class="loading">Loading&#8230;</p>
+    }
+    else if (_filtered.Count == 0)
+    {
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#128176;</span>
+            <p>No cost entries for this period.</p>
+            <a href="/cost/new" class="btn-primary" style="text-decoration:none;text-align:center;display:block;max-width:200px;margin:0 auto">
+                Log First Cost
+            </a>
+        </div>
+    }
+    else
+    {
+        <div class="entries-list">
+            @foreach (var group in _groupedEntries)
+            {
+                <div class="month-group">
+                    <div class="month-header">
+                        <span class="month-label">@group.Label</span>
+                        <span class="month-total">R @group.Total.ToString("N2")</span>
+                    </div>
+                    @foreach (var entry in group.Entries)
+                    {
+                        <div class="cost-entry-card">
+                            <div class="entry-main">
+                                <div class="entry-left">
+                                    <span class="entry-date">@entry.Date.ToString("dd MMM")</span>
+                                    <span class="cat-badge cat-@entry.Category.ToString().ToLower()">
+                                        @LogCost.CategoryEmoji(entry.Category) @entry.Category
+                                    </span>
+                                    @if (entry.AnimalId.HasValue)
+                                    {
+                                        var name = _animals.FirstOrDefault(a => a.Id == entry.AnimalId)?.Name ?? "Unknown";
+                                        <span class="entry-animal">&#128016; @name</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="entry-animal entry-farm">&#127978; Farm</span>
+                                    }
+                                </div>
+                                <span class="entry-amount">R @entry.Amount.ToString("N2")</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(entry.Description))
+                            {
+                                <p class="entry-desc">@entry.Description</p>
+                            }
+                            <button class="delete-entry-btn" @onclick="() => ConfirmDelete(entry)" title="Delete entry">
+                                &#128465;
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="ledger-total">
+            <span class="ledger-total-label">Filtered total</span>
+            <span class="ledger-total-value">R @_filteredTotal.ToString("N2")</span>
+        </div>
+    }
+</div>
+
+<!-- Delete confirmation modal -->
+@if (_deleteTarget is not null)
+{
+    <div class="modal-overlay" @onclick="CancelDelete">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <p class="modal-msg">Delete this cost entry?</p>
+            <p class="modal-sub">
+                @LogCost.CategoryEmoji(_deleteTarget.Category) @_deleteTarget.Category
+                &mdash; R @_deleteTarget.Amount.ToString("N2")
+                &mdash; @_deleteTarget.Date.ToString("dd MMM yyyy")
+            </p>
+            <div class="modal-actions">
+                <button class="btn-secondary" @onclick="CancelDelete">Cancel</button>
+                <button class="btn-danger" @onclick="DeleteConfirmedAsync">Delete</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private record MonthGroup(string Label, List<CostEntry> Entries, decimal Total);
+
+    private List<CostEntry> _all = new();
+    private List<CostEntry> _filtered = new();
+    private List<Animal> _animals = new();
+    private List<MonthGroup> _groupedEntries = new();
+    private List<(CostCategory Category, decimal Total)> _categoryTotals = new();
+    private decimal _totalAllTime;
+    private decimal _totalThisMonth;
+    private decimal _filteredTotal;
+    private string _activePeriod = "month";
+    private string _activeCategoryFilter = string.Empty;
+    private string _activeAnimalFilter = string.Empty;
+    private bool _loaded;
+    private CostEntry? _deleteTarget;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var allAnimals = await Db.GetAllAsync<Animal>("animals");
+            _animals = allAnimals.OrderBy(a => a.Name).ToList();
+
+            _all = await Db.GetAllAsync<CostEntry>("costEntries");
+
+            _totalAllTime = _all.Sum(e => e.Amount);
+            var now = DateTime.Today;
+            _totalThisMonth = _all
+                .Where(e => e.Date.Year == now.Year && e.Date.Month == now.Month)
+                .Sum(e => e.Amount);
+        }
+        catch { }
+
+        ApplyFilters();
+        _loaded = true;
+    }
+
+    private void SetPeriod(string period)
+    {
+        _activePeriod = period;
+        ApplyFilters();
+    }
+
+    private void OnCategoryFilter(ChangeEventArgs e)
+    {
+        _activeCategoryFilter = e.Value?.ToString() ?? string.Empty;
+        ApplyFilters();
+    }
+
+    private void OnAnimalFilter(ChangeEventArgs e)
+    {
+        _activeAnimalFilter = e.Value?.ToString() ?? string.Empty;
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        var now = DateTime.Today;
+        var cutoff = _activePeriod switch
+        {
+            "month"   => new DateTime(now.Year, now.Month, 1),
+            "quarter" => now.AddMonths(-3),
+            "year"    => new DateTime(now.Year, 1, 1),
+            _         => DateTime.MinValue
+        };
+
+        IEnumerable<CostEntry> result = _all.Where(e => e.Date >= cutoff);
+
+        if (!string.IsNullOrEmpty(_activeCategoryFilter) &&
+            Enum.TryParse<CostCategory>(_activeCategoryFilter, out var catFilter))
+            result = result.Where(e => e.Category == catFilter);
+
+        if (!string.IsNullOrEmpty(_activeAnimalFilter))
+        {
+            if (_activeAnimalFilter == "farm")
+                result = result.Where(e => !e.AnimalId.HasValue);
+            else if (Guid.TryParse(_activeAnimalFilter, out var animalId))
+                result = result.Where(e => e.AnimalId == animalId);
+        }
+
+        _filtered = result.OrderByDescending(e => e.Date).ToList();
+        _filteredTotal = _filtered.Sum(e => e.Amount);
+
+        _groupedEntries = _filtered
+            .GroupBy(e => new DateTime(e.Date.Year, e.Date.Month, 1))
+            .OrderByDescending(g => g.Key)
+            .Select(g => new MonthGroup(
+                g.Key.ToString("MMMM yyyy"),
+                g.OrderByDescending(e => e.Date).ToList(),
+                g.Sum(e => e.Amount)))
+            .ToList();
+
+        _categoryTotals = _filtered
+            .GroupBy(e => e.Category)
+            .Select(g => (g.Key, g.Sum(e => e.Amount)))
+            .OrderByDescending(t => t.Item2)
+            .ToList();
+    }
+
+    private void ConfirmDelete(CostEntry entry) => _deleteTarget = entry;
+    private void CancelDelete() => _deleteTarget = null;
+
+    private async Task DeleteConfirmedAsync()
+    {
+        if (_deleteTarget is null) return;
+        try
+        {
+            await Db.DeleteAsync("costEntries", _deleteTarget.Id);
+            _all.Remove(_deleteTarget);
+            _totalAllTime = _all.Sum(e => e.Amount);
+            var now = DateTime.Today;
+            _totalThisMonth = _all
+                .Where(e => e.Date.Year == now.Year && e.Date.Month == now.Month)
+                .Sum(e => e.Amount);
+        }
+        catch { }
+        _deleteTarget = null;
+        ApplyFilters();
+    }
+}

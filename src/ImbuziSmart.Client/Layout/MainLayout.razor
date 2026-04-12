@@ -2,6 +2,7 @@
 @inject ThemeService Theme
 @implements IDisposable
 
+<PwaUpdateBanner />
 <div class="app-layout">
     <header class="app-header">
         <div class="header-content">
@@ -21,10 +22,52 @@
         </div>
     </header>
 
-    <main class="app-main">
-        @Body
-    </main>
+    <div class="app-body">
+        <!-- Sidebar — tablet & desktop only -->
+        <nav class="side-nav">
+            <NavLink href="/" class="side-nav-item" Match="NavLinkMatch.All">
+                <span class="side-nav-icon">&#127968;</span>
+                <span class="side-nav-label">Home</span>
+            </NavLink>
+            <NavLink href="animals" class="side-nav-item">
+                <span class="side-nav-icon">&#128016;</span>
+                <span class="side-nav-label">Animals</span>
+            </NavLink>
+            <NavLink href="passport" class="side-nav-item">
+                <span class="side-nav-icon">&#128203;</span>
+                <span class="side-nav-label">Passport</span>
+            </NavLink>
+            <NavLink href="weight/new" class="side-nav-item">
+                <span class="side-nav-icon">&#9878;&#xFE0F;</span>
+                <span class="side-nav-label">Weigh</span>
+            </NavLink>
+            <NavLink href="medical/new" class="side-nav-item">
+                <span class="side-nav-icon">&#128138;</span>
+                <span class="side-nav-label">Medical Log</span>
+            </NavLink>
+            <NavLink href="heat/new" class="side-nav-item">
+                <span class="side-nav-icon">&#128149;</span>
+                <span class="side-nav-label">Log Heat</span>
+            </NavLink>
+            <NavLink href="cost/ledger" class="side-nav-item">
+                <span class="side-nav-icon">&#128176;</span>
+                <span class="side-nav-label">Ledger</span>
+            </NavLink>
 
+            <div class="side-nav-divider"></div>
+
+            <NavLink href="settings" class="side-nav-item">
+                <span class="side-nav-icon">&#9881;</span>
+                <span class="side-nav-label">Settings</span>
+            </NavLink>
+        </nav>
+
+        <main class="app-main">
+            @Body
+        </main>
+    </div>
+
+    <!-- Bottom nav — mobile only -->
     <nav class="bottom-nav">
         <a href="/" class="nav-item">
             <span class="nav-icon">&#127968;</span>

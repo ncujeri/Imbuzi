@@ -45,9 +45,68 @@
         <a class="dismiss">🗙</a>
     </div>
 
+    <script src="js/html2canvas.min.js"></script>
     <script src="js/indexedDb.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>
-    <script>navigator.serviceWorker.register('service-worker.js');</script>
+    <script>
+        // Register service worker and wire up update detection.
+        window.imbuziSW = (function () {
+            let _reg = null;
+
+            // Register immediately; keep the registration promise for later.
+            const _regPromise = ('serviceWorker' in navigator)
+                ? navigator.serviceWorker.register('service-worker.js')
+                    .then(r => { _reg = r; return r; })
+                : Promise.resolve(null);
+
+            return {
+                // Called by PwaUpdateBanner on first render.
+                // dotNetRef — DotNetObjectReference with an [JSInvokable] OnUpdateAvailable() method.
+                init: async (dotNetRef) => {
+                    const reg = await _regPromise;
+                    if (!reg) return;
+
+                    // Periodically check for updates (every 60 min for long sessions).
+                    setInterval(() => reg.update(), 60 * 60 * 1000);
+
+                    const notify = () => dotNetRef.invokeMethodAsync('OnUpdateAvailable');
+
+                    // Already waiting (user navigated while a SW was pending)?
+                    if (reg.waiting) { notify(); return; }
+
+                    // New SW found during this session.
+                    reg.addEventListener('updatefound', () => {
+                        const sw = reg.installing;
+                        sw.addEventListener('statechange', () => {
+                            if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+                                notify();
+                            }
+                        });
+                    });
+
+                    // When the new SW takes control, reload to serve fresh assets.
+                    let refreshing = false;
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        if (!refreshing) { refreshing = true; window.location.reload(); }
+                    });
+                },
+
+                // Called when user clicks "Update Now".
+                applyUpdate: async () => {
+                    const reg = _reg || await _regPromise;
+                    if (reg && reg.waiting) {
+                        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                },
+
+                // Called from Settings page "Check for updates" button.
+                checkForUpdate: async () => {
+                    const reg = _reg || await _regPromise;
+                    if (reg) await reg.update();
+                }
+            };
+        })();
+    </script>
     <script>
         window.imbuziTheme = {
             get: () => localStorage.getItem('imbuzi-theme') || 'dark',
@@ -58,6 +117,52 @@
         };
     </script>
     <script>
+        window.imbuziPassport = {
+            shareAsImage: async (elementId, animalName) => {
+                const el = document.getElementById(elementId);
+                if (!el) return 'error:element-not-found';
+                try {
+                    // Temporarily force light background so image looks clean
+                    const prevBg = el.style.background;
+                    el.style.background = getComputedStyle(el).backgroundColor || '#ffffff';
+
+                    const canvas = await html2canvas(el, {
+                        scale: 2,
+                        useCORS: true,
+                        allowTaint: true,
+                        backgroundColor: null
+                    });
+                    el.style.background = prevBg;
+
+                    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+                    const file = new File([blob], animalName + '-passport.png', { type: 'image/png' });
+
+                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            title: animalName + ' - iMbuzi Smart Passport',
+                            text: 'Livestock passport for ' + animalName,
+                            files: [file]
+                        });
+                        return 'shared';
+                    } else {
+                        // Fallback: download the image
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = animalName + '-passport.png';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        return 'downloaded';
+                    }
+                } catch (e) {
+                    return 'error:' + e.message;
+                }
+            },
+            printPassport: () => { window.print(); }
+        };
+
         window.imbuziNotify = {
             getPermission: () => typeof Notification !== 'undefined' ? Notification.permission : 'denied',
             send: (title, body) => {

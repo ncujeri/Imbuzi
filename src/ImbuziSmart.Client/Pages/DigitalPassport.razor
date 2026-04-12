@@ -1,36 +1,210 @@
 @page "/passport"
 @page "/passport/{AnimalId:guid}"
 @inject IndexedDbService Db
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>Digital Passport - iMbuzi Smart</PageTitle>
 
 <div class="passport-page">
     @if (AnimalId.HasValue && _animal is not null)
     {
-        <div class="passport-card">
-            <div class="passport-header">
-                <span class="passport-icon">🐐</span>
-                <div>
-                    <h2>@_animal.Name</h2>
-                    <span class="tag-label">Tag: @_animal.Tag</span>
+        <div class="page-header">
+            <button class="back-btn" @onclick='() => Navigation.NavigateTo("/animals")'>&#8592; Back</button>
+            <h2 class="page-title">Passport</h2>
+            <div class="passport-header-actions">
+                <button class="share-btn" @onclick="SharePassport" title="Share" disabled="@_isSharing">
+                    @if (_isSharing)
+                    { <span class="share-spinner">&#8987;</span> }
+                    else
+                    { <span>&#8679; Share</span> }
+                </button>
+                <button class="print-btn" @onclick="PrintPassport" title="Print / Save PDF">
+                    &#128438; PDF
+                </button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_shareMessage))
+        {
+            <div class="share-toast @(_shareMessage.StartsWith("Error") ? "toast-error" : "toast-ok")">
+                @_shareMessage
+            </div>
+        }
+
+        <div class="passport-card" id="passport-card">
+            <!-- Identity -->
+            <div class="passport-hero">
+                @if (_animal.Photos.Count > 0)
+                {
+                    <img src="data:@_animal.Photos[0].ContentType;base64,@_animal.Photos[0].Base64Data"
+                        alt="@_animal.Name" class="passport-hero-img" />
+                }
+                else
+                {
+                    <div class="passport-hero-placeholder">&#128016;</div>
+                }
+                <div class="passport-hero-info">
+                    <h2 class="passport-name">@_animal.Name</h2>
+                    <span class="passport-tag">Tag: @_animal.Tag</span>
+                    <span class="status-chip status-@_animal.Status.ToString().ToLower()">@_animal.Status</span>
                 </div>
             </div>
 
+            <!-- Details -->
             <div class="passport-section">
-                <h3>Details</h3>
-                <div class="detail-row"><span>Species</span><span>@_animal.Species</span></div>
-                <div class="detail-row"><span>Breed</span><span>@(_animal.Breed ?? "Unknown")</span></div>
-                <div class="detail-row"><span>Sex</span><span>@_animal.Sex</span></div>
-                <div class="detail-row"><span>Date of Birth</span><span>@(_animal.DateOfBirth?.ToShortDateString() ?? "Unknown")</span></div>
-                <div class="detail-row"><span>Status</span><span class="status-badge">@_animal.Status</span></div>
+                <h3 class="section-title">&#128203; Details</h3>
+                <div class="detail-grid">
+                    <div class="detail-row"><span class="detail-label">Species</span><span>@_animal.Species</span></div>
+                    <div class="detail-row"><span class="detail-label">Breed</span><span>@(_animal.Breed ?? "Unknown")</span></div>
+                    <div class="detail-row"><span class="detail-label">Sex</span><span>@_animal.Sex</span></div>
+                    <div class="detail-row"><span class="detail-label">Date of Birth</span><span>@(_animal.DateOfBirth?.ToString("dd MMM yyyy") ?? "Unknown")</span></div>
+                    @if (_animal.AcquisitionType == "Purchased")
+                    {
+                        <div class="detail-row"><span class="detail-label">Origin</span><span>Purchased</span></div>
+                        @if (!string.IsNullOrEmpty(_animal.PurchasedFrom))
+                        {
+                            <div class="detail-row"><span class="detail-label">Purchased From</span><span>@_animal.PurchasedFrom</span></div>
+                        }
+                        @if (_animal.AcquisitionDate.HasValue)
+                        {
+                            <div class="detail-row"><span class="detail-label">Date Acquired</span><span>@_animal.AcquisitionDate.Value.ToString("dd MMM yyyy")</span></div>
+                        }
+                    }
+                    else if (_animal.AcquisitionType == "BornOnFarm")
+                    {
+                        <div class="detail-row"><span class="detail-label">Origin</span><span>Born on Farm</span></div>
+                        @if (_sire is not null)
+                        {
+                            <div class="detail-row"><span class="detail-label">Sire (Father)</span><span>@_sire.Name (@_sire.Tag)</span></div>
+                        }
+                        @if (_dam is not null)
+                        {
+                            <div class="detail-row"><span class="detail-label">Dam (Mother)</span><span>@_dam.Name (@_dam.Tag)</span></div>
+                        }
+                    }
+                    @if (!string.IsNullOrEmpty(_animal.Notes))
+                    {
+                        <div class="detail-row detail-row-full"><span class="detail-label">Notes</span><span>@_animal.Notes</span></div>
+                    }
+                </div>
             </div>
 
-            @if (_animal.Photos.Count > 0)
+            <!-- Weight History -->
+            <div class="passport-section">
+                <h3 class="section-title">&#9878; Weight History</h3>
+                @if (_weights.Count == 0)
+                {
+                    <p class="section-empty">No weight records yet. <a href="/weight/new" class="inline-link">Weigh this animal</a></p>
+                }
+                else
+                {
+                    <div class="history-table">
+                        <div class="history-header">
+                            <span>Date</span>
+                            <span>Weight</span>
+                            <span>Method</span>
+                        </div>
+                        @foreach (var w in _weights)
+                        {
+                            <div class="history-row @(w == _weights[0] ? "history-row-latest" : "")">
+                                <span>@w.WeighedAt.ToString("dd MMM yyyy")</span>
+                                <span class="weight-value">@w.Kilograms.ToString("0.0") kg</span>
+                                <span class="method-badge">@w.Method</span>
+                            </div>
+                        }
+                    </div>
+                    @if (_weights.Count > 1)
+                    {
+                        var diff = _weights[0].Kilograms - _weights[^1].Kilograms;
+                        var days = (_weights[0].WeighedAt - _weights[^1].WeighedAt).Days;
+                        <div class="weight-summary">
+                            <span>Total gain: <strong>@diff.ToString("+0.0;-0.0") kg</strong> over @days days</span>
+                        </div>
+                    }
+                }
+            </div>
+
+            <!-- Medication History -->
+            <div class="passport-section">
+                <h3 class="section-title">&#128138; Medication History</h3>
+                @if (_medLogs.Count == 0)
+                {
+                    <p class="section-empty">No medical records yet. <a href="/medical/new" class="inline-link">Log treatment</a></p>
+                }
+                else
+                {
+                    @foreach (var log in _medLogs)
+                    {
+                        <div class="med-card">
+                            <div class="med-card-top">
+                                <span class="med-name">@log.Medication</span>
+                                <span class="med-date">@log.TreatmentDate.ToString("dd MMM yyyy")</span>
+                            </div>
+                            <div class="med-card-body">
+                                @if (!string.IsNullOrEmpty(log.Dosage))
+                                {
+                                    <div class="med-row"><span class="detail-label">Dosage</span><span>@log.Dosage</span></div>
+                                }
+                                @if (!string.IsNullOrEmpty(log.VetName))
+                                {
+                                    <div class="med-row"><span class="detail-label">Vet</span><span>@log.VetName</span></div>
+                                }
+                                @if (log.WithdrawalEndDate.HasValue)
+                                {
+                                    var wdClass = log.WithdrawalEndDate.Value > DateTime.Today ? "wd-active" : "wd-clear";
+                                    <div class="med-row">
+                                        <span class="detail-label">Withdrawal</span>
+                                        <span class="wd-badge @wdClass">
+                                            @(log.WithdrawalEndDate.Value > DateTime.Today
+                                                ? $"Ends {log.WithdrawalEndDate.Value:dd MMM yyyy}"
+                                                : "Cleared")
+                                        </span>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(log.Notes))
+                                {
+                                    <div class="med-row"><span class="detail-label">Notes</span><span>@log.Notes</span></div>
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <!-- Sale Information -->
+            @if (_animal.Status == AnimalStatus.Sold)
             {
                 <div class="passport-section">
-                    <h3>Photos (@_animal.Photos.Count)</h3>
+                    <h3 class="section-title">&#128179; Sale Information</h3>
+                    <div class="detail-grid sale-highlight">
+                        @if (_animal.SalePrice.HasValue)
+                        {
+                            <div class="detail-row"><span class="detail-label">Sale Price</span><span class="sale-price">R @_animal.SalePrice.Value.ToString("N2")</span></div>
+                        }
+                        @if (_animal.SaleDate.HasValue)
+                        {
+                            <div class="detail-row"><span class="detail-label">Date Sold</span><span>@_animal.SaleDate.Value.ToString("dd MMM yyyy")</span></div>
+                        }
+                        @if (!string.IsNullOrEmpty(_animal.BuyerName))
+                        {
+                            <div class="detail-row"><span class="detail-label">Buyer</span><span>@_animal.BuyerName</span></div>
+                        }
+                        @if (!_animal.SalePrice.HasValue && !_animal.SaleDate.HasValue && string.IsNullOrEmpty(_animal.BuyerName))
+                        {
+                            <p class="section-empty">No sale details recorded. <a href="/animals/@_animal.Id/edit" class="inline-link">Edit animal</a> to add them.</p>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Extra Photos -->
+            @if (_animal.Photos.Count > 1)
+            {
+                <div class="passport-section">
+                    <h3 class="section-title">&#128247; Photos</h3>
                     <div class="photo-grid">
-                        @foreach (var photo in _animal.Photos)
+                        @foreach (var photo in _animal.Photos.Skip(1))
                         {
                             <img src="data:@photo.ContentType;base64,@photo.Base64Data" alt="@photo.FileName" class="passport-photo" />
                         }
@@ -38,19 +212,21 @@
                 </div>
             }
 
-            @if (_animal.Notes is not null)
-            {
-                <div class="passport-section">
-                    <h3>Notes</h3>
-                    <p>@_animal.Notes</p>
-                </div>
-            }
+            <!-- Quick Actions -->
+            <div class="passport-actions">
+                <a href="/weight/new?animalId=@_animal.Id" class="action-btn">&#9878; Weigh</a>
+                <a href="/medical/new?animalId=@_animal.Id" class="action-btn">&#128138; Medicate</a>
+                <a href="/cost/new?animalId=@_animal.Id" class="action-btn">&#128176; Cost</a>
+                <a href="/animals/@_animal.Id/edit" class="action-btn">&#9998; Edit</a>
+            </div>
         </div>
     }
     else if (!AnimalId.HasValue)
     {
+        <div class="page-header">
+            <h2 class="page-title">Passport</h2>
+        </div>
         <div class="passport-select">
-            <h2>Digital Passport</h2>
             <p>Select an animal to view its passport.</p>
 
             @if (_animals.Count > 0)
@@ -59,25 +235,37 @@
                     @foreach (var animal in _animals)
                     {
                         <a href="passport/@animal.Id" class="animal-card">
-                            <span class="animal-icon">🐐</span>
+                            <span class="animal-icon">&#128016;</span>
                             <div>
                                 <strong>@animal.Name</strong>
                                 <span class="tag-small">@animal.Tag</span>
                             </div>
-                            <span class="status-badge">@animal.Status</span>
+                            <span class="status-chip status-@animal.Status.ToString().ToLower()">@animal.Status</span>
                         </a>
                     }
                 </div>
             }
             else
             {
-                <p class="empty-state">No animals registered yet. Add your first animal from the dashboard.</p>
+                <p class="empty-state">No animals registered yet. <a href="/animals/new" class="inline-link">Add your first animal</a></p>
             }
+        </div>
+    }
+    else if (_loaded)
+    {
+        <div class="page-header">
+            <button class="back-btn" @onclick='() => Navigation.NavigateTo("/animals")'>&#8592; Back</button>
+            <h2 class="page-title">Passport</h2>
+        </div>
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#128016;</span>
+            <p>Animal not found.</p>
+            <button class="btn-primary" @onclick='() => Navigation.NavigateTo("/animals")'>Back to Animals</button>
         </div>
     }
     else
     {
-        <p class="loading">Loading...</p>
+        <p class="loading">Loading&#8230;</p>
     }
 </div>
 
@@ -85,24 +273,92 @@
     [Parameter] public Guid? AnimalId { get; set; }
 
     private Animal? _animal;
+    private Animal? _sire;
+    private Animal? _dam;
     private List<Animal> _animals = new();
+    private List<WeightRecord> _weights = new();
+    private List<MedicalLog> _medLogs = new();
+    private bool _loaded;
+    private bool _isSharing;
+    private string _shareMessage = string.Empty;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        _loaded = false;
+        _animal = null;
+        _sire   = null;
+        _dam    = null;
+        _animals = new();
+        _weights = new();
+        _medLogs = new();
+
         try
         {
             if (AnimalId.HasValue)
             {
                 _animal = await Db.GetAsync<Animal>("animals", AnimalId.Value);
+
+                if (_animal is not null)
+                {
+                    var animalIdStr = AnimalId.Value.ToString();
+
+                    var weightsTask = Db.GetByIndexAsync<WeightRecord>("weightRecords", "animalId", animalIdStr);
+                    var medLogsTask = Db.GetByIndexAsync<MedicalLog>("medicalLogs", "animalId", animalIdStr);
+
+                    await Task.WhenAll(weightsTask, medLogsTask);
+
+                    _weights = weightsTask.Result.OrderByDescending(w => w.WeighedAt).ToList();
+                    _medLogs = medLogsTask.Result.OrderByDescending(m => m.TreatmentDate).ToList();
+
+                    if (_animal.SireId.HasValue)
+                        _sire = await Db.GetAsync<Animal>("animals", _animal.SireId.Value);
+                    if (_animal.DamId.HasValue)
+                        _dam  = await Db.GetAsync<Animal>("animals", _animal.DamId.Value);
+                }
             }
             else
             {
                 _animals = await Db.GetAllAsync<Animal>("animals");
             }
         }
-        catch
+        catch { }
+
+        _loaded = true;
+    }
+
+    private async Task SharePassport()
+    {
+        if (_animal is null) return;
+        _isSharing = true;
+        _shareMessage = string.Empty;
+        StateHasChanged();
+
+        try
         {
-            // Handle gracefully on first load with empty DB
+            var result = await JS.InvokeAsync<string>("imbuziPassport.shareAsImage", "passport-card", _animal.Name);
+            _shareMessage = result switch
+            {
+                "shared"     => "Passport shared successfully!",
+                "downloaded" => "Passport saved as image.",
+                _            => result.StartsWith("error:") ? $"Error: {result[6..]}" : string.Empty
+            };
+        }
+        catch (Exception ex)
+        {
+            _shareMessage = $"Error: {ex.Message}";
+        }
+
+        _isSharing = false;
+
+        // Auto-dismiss toast after 3 seconds
+        if (!string.IsNullOrEmpty(_shareMessage))
+        {
+            await Task.Delay(3000);
+            _shareMessage = string.Empty;
+            StateHasChanged();
         }
     }
+
+    private async Task PrintPassport() =>
+        await JS.InvokeVoidAsync("imbuziPassport.printPassport");
 }

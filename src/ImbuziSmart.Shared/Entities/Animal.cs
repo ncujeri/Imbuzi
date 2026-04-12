@@ -25,4 +25,13 @@ public class Animal : BaseEntity
 
     /// <summary>Date the animal was acquired/purchased.</summary>
     public DateTime? AcquisitionDate { get; set; }
+
+    /// <summary>Sale price in local currency — populated when Status is Sold.</summary>
+    public decimal? SalePrice { get; set; }
+
+    /// <summary>Date the animal was sold.</summary>
+    public DateTime? SaleDate { get; set; }
+
+    /// <summary>Name of the buyer.</summary>
+    public string? BuyerName { get; set; }
 }

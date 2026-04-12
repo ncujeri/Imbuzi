@@ -1,3 +1,4 @@
+/* ── Shell ── */
 .app-layout {
     display: flex;
     flex-direction: column;
@@ -7,10 +8,11 @@
     transition: background-color 0.25s, color 0.25s;
 }
 
+/* ── Header ── */
 .app-header {
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: 200;
     background: var(--bg-nav);
     border-bottom: 2px solid var(--border-nav-b);
     padding: 0.75rem 1rem;
@@ -20,7 +22,7 @@
 .header-content {
     display: flex;
     align-items: center;
-    max-width: 900px;
+    max-width: 1400px;
     margin: 0 auto;
     gap: 0.5rem;
 }
@@ -35,6 +37,13 @@
 }
 
 .header-logo-link:active { opacity: 0.75; }
+
+.app-logo-img {
+    height: 36px;
+    width: 36px;
+    border-radius: 8px;
+    object-fit: contain;
+}
 
 .app-logo { font-size: 1.8rem; }
 
@@ -74,12 +83,25 @@
     color: var(--text-secondary);
 }
 
-.app-main {
-    flex: 1;
-    padding-bottom: 80px;
+/* Hide the gear icon in the header when sidebar is visible (settings is in sidebar) */
+@media (min-width: 768px) {
+    .settings-link { display: none; }
 }
 
-/* Bottom nav */
+/* ── Body row (sidebar + main) ── */
+.app-body {
+    display: flex;
+    flex: 1;
+}
+
+/* ── Main content ── */
+.app-main {
+    flex: 1;
+    min-width: 0;
+    padding-bottom: 80px; /* space for bottom nav on mobile */
+}
+
+/* ── Bottom nav — mobile only ── */
 .bottom-nav {
     position: fixed;
     bottom: 0;
@@ -122,6 +144,88 @@
     margin-top: 0.2rem;
 }
 
+/* ── Sidebar — hidden on mobile, visible on tablet/desktop ── */
+.side-nav {
+    display: none;
+}
+
 @media (min-width: 768px) {
+    /* Hide bottom nav */
     .bottom-nav { display: none; }
+
+    /* Show sidebar */
+    .side-nav {
+        display: flex;
+        flex-direction: column;
+        width: 220px;
+        flex-shrink: 0;
+        background: var(--bg-nav);
+        border-right: 2px solid var(--border-nav-b);
+        padding: 1rem 0.75rem;
+        position: sticky;
+        top: 57px; /* matches header height */
+        height: calc(100vh - 57px);
+        overflow-y: auto;
+        transition: background 0.25s, border-color 0.25s;
+        gap: 0.25rem;
+    }
+
+    /* Remove bottom nav padding from main, add left breathing room */
+    .app-main {
+        padding-bottom: 2rem;
+    }
+}
+
+/* ── Sidebar nav items ── */
+.side-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 10px;
+    text-decoration: none;
+    color: var(--nav-item-color);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.side-nav-item:hover {
+    background: var(--bg-overlay);
+    color: var(--nav-item-active);
+}
+
+/* NavLink active class injected by Blazor */
+.side-nav-item.active {
+    background: rgba(39, 174, 96, 0.15);
+    color: var(--green-bright);
+    font-weight: 700;
+}
+
+.side-nav-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.side-nav-label {
+    white-space: nowrap;
+}
+
+.side-nav-divider {
+    height: 1px;
+    background: var(--border-default);
+    margin: 0.5rem 0.25rem;
+}
+
+/* ── Wider desktop — give more breathing room ── */
+@media (min-width: 1200px) {
+    .side-nav {
+        width: 240px;
+    }
+
+    .header-content {
+        padding: 0 1rem;
+    }
 }

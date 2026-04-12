@@ -1,0 +1,84 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (_updateAvailable)
+{
+    <div class="pwa-update-banner @(_visible ? "pwa-banner-visible" : "")">
+        <div class="pwa-banner-content">
+            <span class="pwa-banner-icon">&#128260;</span>
+            <div class="pwa-banner-text">
+                <strong>Update available</strong>
+                <span>New version ready &mdash; tap to get the latest.</span>
+            </div>
+        </div>
+        <div class="pwa-banner-actions">
+            <button class="pwa-update-btn" @onclick="ApplyUpdate" disabled="@_applying">
+                @if (_applying)
+                {
+                    <span class="pwa-spinner">&#8987;</span>
+                    <span>Updating&hellip;</span>
+                }
+                else
+                {
+                    <span>Update Now</span>
+                }
+            </button>
+            <button class="pwa-dismiss-btn" @onclick="Dismiss" disabled="@_applying" title="Dismiss">&#10005;</button>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _updateAvailable;
+    private bool _visible;        // drives the slide-in animation
+    private bool _applying;
+    private DotNetObjectReference<PwaUpdateBanner>? _ref;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _ref = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("imbuziSW.init", _ref);
+        }
+    }
+
+    /// <summary>Called from JS when a waiting service worker is detected.</summary>
+    [JSInvokable]
+    public async Task OnUpdateAvailable()
+    {
+        _updateAvailable = true;
+        StateHasChanged();
+
+        // Short delay lets the DOM render before the CSS transition plays.
+        await Task.Delay(50);
+        _visible = true;
+        StateHasChanged();
+    }
+
+    private async Task ApplyUpdate()
+    {
+        _applying = true;
+        StateHasChanged();
+        // Triggers SKIP_WAITING in the SW → controllerchange fires → page reloads.
+        await JS.InvokeVoidAsync("imbuziSW.applyUpdate");
+        // (page will reload; no further state changes needed)
+    }
+
+    private void Dismiss()
+    {
+        _visible = false;
+        // Remove from DOM after the slide-out animation finishes.
+        _ = Task.Delay(350).ContinueWith(_ =>
+        {
+            _updateAvailable = false;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _ref?.Dispose();
+        await Task.CompletedTask;
+    }
+}

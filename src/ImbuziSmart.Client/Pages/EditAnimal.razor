@@ -175,6 +175,32 @@
                 </div>
             </div>
 
+            <!-- Sale Information — shown when status is Sold -->
+            @if (_form.Status == AnimalStatus.Sold)
+            {
+                <div class="form-section">
+                    <h3 class="form-section-title">&#128179; Sale Information</h3>
+
+                    <div class="form-group">
+                        <label for="salePrice">Sale Price (R)</label>
+                        <InputNumber id="salePrice" @bind-Value="_form.SalePrice" class="form-input"
+                            placeholder="e.g. 2500.00" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="saleDate">Date Sold</label>
+                        <InputDate id="saleDate" @bind-Value="_form.SaleDate" class="form-input"
+                            max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="buyerName">Buyer Name</label>
+                        <InputText id="buyerName" @bind-Value="_form.BuyerName" class="form-input"
+                            placeholder="e.g. Sithole Abattoir" />
+                    </div>
+                </div>
+            }
+
             <!-- Photos -->
             <div class="form-section">
                 <h3 class="form-section-title">Photos</h3>
@@ -274,6 +300,9 @@
             _form.AcquisitionType = _original.AcquisitionType;
             _form.PurchasedFrom   = _original.PurchasedFrom;
             _form.AcquisitionDate = _original.AcquisitionDate;
+            _form.SalePrice       = _original.SalePrice;
+            _form.SaleDate        = _original.SaleDate;
+            _form.BuyerName       = _original.BuyerName;
             _existingPhotos       = _original.Photos.ToList();
 
             var all = await Db.GetAllAsync<Animal>("animals");
@@ -325,6 +354,9 @@
                 AcquisitionType = string.IsNullOrEmpty(_form.AcquisitionType) ? null : _form.AcquisitionType,
                 PurchasedFrom   = string.IsNullOrWhiteSpace(_form.PurchasedFrom) ? null : _form.PurchasedFrom.Trim(),
                 AcquisitionDate = _form.AcquisitionDate,
+                SalePrice       = _form.Status == AnimalStatus.Sold ? _form.SalePrice : null,
+                SaleDate        = _form.Status == AnimalStatus.Sold ? _form.SaleDate : null,
+                BuyerName       = _form.Status == AnimalStatus.Sold && !string.IsNullOrWhiteSpace(_form.BuyerName) ? _form.BuyerName.Trim() : null,
                 CreatedAt       = _original!.CreatedAt,
                 UpdatedAt       = DateTime.UtcNow
             };
@@ -391,6 +423,9 @@
         public string?      AcquisitionType { get; set; }
         public string?      PurchasedFrom   { get; set; }
         public DateTime?    AcquisitionDate { get; set; }
+        public decimal?     SalePrice       { get; set; }
+        public DateTime?    SaleDate        { get; set; }
+        public string?      BuyerName       { get; set; }
     }
 
     private class PreviewPhoto

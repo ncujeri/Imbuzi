@@ -230,6 +230,9 @@
 @code {
     private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
 
+    [Parameter, SupplyParameterFromQuery(Name = "animalId")]
+    public string? PreselectedAnimalId { get; set; }
+
     private WeighFormModel _form = new();
     private List<Animal> _animals = new();
     private Animal? _selectedAnimal;
@@ -251,6 +254,17 @@
                 .Where(a => a.Status == AnimalStatus.Active)
                 .OrderBy(a => a.Name)
                 .ToList();
+
+            if (!string.IsNullOrEmpty(PreselectedAnimalId) &&
+                Guid.TryParse(PreselectedAnimalId, out var preId))
+            {
+                _selectedAnimal = _animals.FirstOrDefault(a => a.Id == preId);
+                if (_selectedAnimal is not null)
+                {
+                    _form.AnimalId = preId.ToString();
+                    await LoadWeightHistoryAsync(preId);
+                }
+            }
         }
         catch { }
         finally { _loaded = true; }

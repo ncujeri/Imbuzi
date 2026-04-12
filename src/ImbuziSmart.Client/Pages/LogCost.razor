@@ -1,0 +1,172 @@
+@page "/cost/new"
+@using System.ComponentModel.DataAnnotations
+@inject NavigationManager Navigation
+@inject IndexedDbService Db
+
+<PageTitle>Log Cost - iMbuzi Smart</PageTitle>
+
+<div class="log-cost-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick="GoBack">&#8592; Back</button>
+        <h2 class="page-title">Log Cost</h2>
+    </div>
+
+    <EditForm Model="_form" OnValidSubmit="SaveAsync" class="cost-form">
+        <DataAnnotationsValidator />
+
+        <!-- Animal selector (optional) -->
+        <div class="form-section">
+            <h3 class="form-section-title">&#128016; Animal (optional)</h3>
+            <div class="form-group">
+                <label for="animal">Link to Animal</label>
+                <InputSelect id="animal" @bind-Value="_form.AnimalId" class="form-select">
+                    <option value="">&#8212; Farm-wide (no specific animal) &#8212;</option>
+                    @foreach (var a in _animals)
+                    {
+                        <option value="@a.Id">@a.Name (@a.Tag)</option>
+                    }
+                </InputSelect>
+            </div>
+        </div>
+
+        <!-- Cost details -->
+        <div class="form-section">
+            <h3 class="form-section-title">&#128176; Cost Details</h3>
+
+            <div class="form-group">
+                <label>Category <span class="required">*</span></label>
+                <div class="category-grid">
+                    @foreach (var cat in Enum.GetValues<CostCategory>())
+                    {
+                        <button type="button"
+                            class="cat-btn @(_form.Category == cat ? "cat-selected" : "")"
+                            @onclick="() => _form.Category = cat">
+                            <span class="cat-icon">@CategoryEmoji(cat)</span>
+                            <span class="cat-label">@cat</span>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="amount">Amount (R) <span class="required">*</span></label>
+                <div class="input-unit-row">
+                    <InputNumber id="amount" @bind-Value="_form.Amount" class="form-input"
+                        placeholder="0.00" step="0.01" min="0.01" max="9999999" />
+                    <span class="input-unit">ZAR</span>
+                </div>
+                <ValidationMessage For="@(() => _form.Amount)" class="validation-msg" />
+            </div>
+
+            <div class="form-group">
+                <label for="date">Date <span class="required">*</span></label>
+                <InputDate id="date" @bind-Value="_form.Date" class="form-input"
+                    max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                <ValidationMessage For="@(() => _form.Date)" class="validation-msg" />
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <InputTextArea id="description" @bind-Value="_form.Description" class="form-textarea" rows="2"
+                    placeholder="e.g. 50 kg maize meal from Agrimark, deworming for whole herd..." />
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="form-error-banner">&#9888; @_errorMessage</div>
+        }
+
+        <div class="form-actions">
+            <button type="button" class="btn-secondary" @onclick="GoBack" disabled="@_isSaving">Cancel</button>
+            <button type="submit" class="btn-primary" disabled="@_isSaving">
+                @if (_isSaving) { <span>Saving&#8230;</span> }
+                else { <span>&#128176; Save Cost</span> }
+            </button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+    [Parameter, SupplyParameterFromQuery(Name = "animalId")]
+    public string? PreselectedAnimalId { get; set; }
+
+    private CostFormModel _form = new();
+    private List<Animal> _animals = new();
+    private bool _isSaving;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var all = await Db.GetAllAsync<Animal>("animals");
+            _animals = all.OrderBy(a => a.Name).ToList();
+
+            if (!string.IsNullOrEmpty(PreselectedAnimalId) &&
+                Guid.TryParse(PreselectedAnimalId, out var preId) &&
+                _animals.Any(a => a.Id == preId))
+            {
+                _form.AnimalId = preId.ToString();
+            }
+        }
+        catch { }
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSaving = true;
+        _errorMessage = string.Empty;
+        try
+        {
+            var entry = new CostEntry
+            {
+                Id = Guid.NewGuid(),
+                TenantId = DemoTenantId,
+                AnimalId = string.IsNullOrEmpty(_form.AnimalId) ? null : Guid.Parse(_form.AnimalId),
+                Category = _form.Category,
+                Amount = _form.Amount!.Value,
+                Date = _form.Date,
+                Description = string.IsNullOrWhiteSpace(_form.Description) ? null : _form.Description.Trim(),
+                CreatedAt = DateTime.UtcNow
+            };
+            await Db.PutAsync("costEntries", entry);
+            Navigation.NavigateTo("/cost/ledger");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save: {ex.Message}";
+            _isSaving = false;
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/cost/ledger");
+
+    internal static string CategoryEmoji(CostCategory cat) => cat switch
+    {
+        CostCategory.Feed       => "🌾",
+        CostCategory.Medication => "💉",
+        CostCategory.Labor      => "👷",
+        CostCategory.Veterinary => "🩺",
+        CostCategory.Equipment  => "🔧",
+        CostCategory.Other      => "📦",
+        _                       => "💰"
+    };
+
+    private class CostFormModel
+    {
+        public string AnimalId { get; set; } = string.Empty;
+        public CostCategory Category { get; set; } = CostCategory.Feed;
+
+        [Required(ErrorMessage = "Amount is required")]
+        [Range(0.01, 9999999, ErrorMessage = "Amount must be greater than 0")]
+        public decimal? Amount { get; set; }
+
+        [Required(ErrorMessage = "Date is required")]
+        public DateTime Date { get; set; } = DateTime.Today;
+
+        public string? Description { get; set; }
+    }
+}
