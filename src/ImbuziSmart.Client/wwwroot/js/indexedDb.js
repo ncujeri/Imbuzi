@@ -133,5 +133,50 @@ window.imbuziDb = {
         });
     },
 
+    // Remove all syncQueue entries for a specific entity (by type + id).
+    // Called after a successful sync to clear only the synced items.
+    removeSyncQueueByEntity: async (entityType, entityId) => {
+        const db = await openDb();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('syncQueue', 'readwrite');
+            const store = tx.objectStore('syncQueue');
+            const index = store.index('entityType');
+            const request = index.openCursor(IDBKeyRange.only(entityType));
+            const toDelete = [];
+
+            request.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    if (cursor.value.entityId === entityId) {
+                        toDelete.push(cursor.primaryKey);
+                    }
+                    cursor.continue();
+                } else {
+                    // Delete collected keys
+                    let pending = toDelete.length;
+                    if (pending === 0) { resolve(); return; }
+                    for (const key of toDelete) {
+                        const del = store.delete(key);
+                        del.onsuccess = () => { if (--pending === 0) resolve(); };
+                        del.onerror = () => reject(del.error);
+                    }
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    },
+
+    // Returns the number of items currently in the syncQueue.
+    countSyncQueue: async () => {
+        const db = await openDb();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('syncQueue', 'readonly');
+            const store = tx.objectStore('syncQueue');
+            const request = store.count();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    },
+
     isOnline: () => navigator.onLine
 };

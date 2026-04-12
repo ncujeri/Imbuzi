@@ -163,6 +163,19 @@
             printPassport: () => { window.print(); }
         };
 
+        window.imbuziSync = (function () {
+            let _dotNetRef = null;
+
+            window.addEventListener('online',  () => _dotNetRef?.invokeMethodAsync('OnOnlineAsync'));
+            window.addEventListener('offline', () => _dotNetRef?.invokeMethodAsync('OnOfflineAsync'));
+
+            return {
+                // Called by SyncIndicator on first render.
+                // dotNetRef — DotNetObjectReference<SyncService>
+                init: (dotNetRef) => { _dotNetRef = dotNetRef; }
+            };
+        })();
+
         window.imbuziNotify = {
             getPermission: () => typeof Notification !== 'undefined' ? Notification.permission : 'denied',
             send: (title, body) => {

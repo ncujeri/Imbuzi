@@ -8,6 +8,7 @@ public class ImbuziDbContext : DbContext
     private readonly Guid _tenantId;
 
     public DbSet<Animal> Animals => Set<Animal>();
+    public DbSet<WeightRecord> WeightRecords => Set<WeightRecord>();
     public DbSet<MatingRecord> MatingRecords => Set<MatingRecord>();
     public DbSet<HeatRecord> HeatRecords => Set<HeatRecord>();
     public DbSet<MedicalLog> MedicalLogs => Set<MedicalLog>();
@@ -27,11 +28,19 @@ public class ImbuziDbContext : DbContext
     {
         // Global tenant query filters — every query is automatically scoped
         modelBuilder.Entity<Animal>().HasQueryFilter(e => e.TenantId == _tenantId);
+        modelBuilder.Entity<WeightRecord>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<MatingRecord>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<HeatRecord>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<MedicalLog>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<CostEntry>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<FarmSettings>().HasQueryFilter(e => e.TenantId == _tenantId);
+
+        // WeightRecord
+        modelBuilder.Entity<WeightRecord>(entity =>
+        {
+            entity.HasIndex(w => new { w.TenantId, w.AnimalId });
+            entity.Property(w => w.Method).HasMaxLength(20).HasDefaultValue("Scale");
+        });
 
         // Animal — self-referencing parentage
         modelBuilder.Entity<Animal>(entity =>

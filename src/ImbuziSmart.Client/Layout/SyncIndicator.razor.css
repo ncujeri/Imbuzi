@@ -1,0 +1,70 @@
+/* ── Sync status chip ── */
+.sync-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background 0.2s, color 0.2s;
+    line-height: 1.2;
+}
+
+.sync-icon {
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.sync-label {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* States */
+.sync-syncing {
+    background: rgba(var(--green-teal-rgb, 52, 152, 103), 0.15);
+    color: var(--green-bright, #2ecc71);
+    animation: sync-pulse 1.2s ease-in-out infinite;
+}
+
+.sync-synced {
+    background: rgba(46, 204, 113, 0.15);
+    color: #2ecc71;
+}
+
+.sync-failed {
+    background: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+}
+
+.sync-offline {
+    background: rgba(149, 165, 166, 0.15);
+    color: var(--text-muted, #95a5a6);
+}
+
+/* Retry button inside the failed chip */
+.sync-retry {
+    background: none;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    color: inherit;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    cursor: pointer;
+    margin-left: 0.15rem;
+    transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.sync-retry:hover {
+    background: rgba(231, 76, 60, 0.2);
+}
+
+@keyframes sync-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.55; }
+}

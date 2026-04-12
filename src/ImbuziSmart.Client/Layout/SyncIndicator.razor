@@ -1,0 +1,46 @@
+@inject SyncService Sync
+@implements IAsyncDisposable
+
+@{
+    var (icon, label, css) = Sync.State switch
+    {
+        SyncState.Syncing => ("↑", $"Syncing {Sync.PendingCount} change{(Sync.PendingCount == 1 ? "" : "s")}…", "sync-syncing"),
+        SyncState.Synced  => ("✓", "Synced",                                                                        "sync-synced"),
+        SyncState.Failed  => ("⚠",  Sync.ErrorMessage ?? "Sync failed",                                              "sync-failed"),
+        SyncState.Offline => ("⊘", "Offline",                                                                        "sync-offline"),
+        _                  => ("",   "",                                                                               "sync-idle")
+    };
+}
+
+@if (Sync.State != SyncState.Idle)
+{
+    <div class="sync-indicator @css" title="@label">
+        <span class="sync-icon">@icon</span>
+        <span class="sync-label">@label</span>
+        @if (Sync.State == SyncState.Failed)
+        {
+            <button class="sync-retry" @onclick="RetryAsync">Retry</button>
+        }
+    </div>
+}
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Sync.OnChanged += OnSyncChanged;
+            await Sync.InitAsync();
+        }
+    }
+
+    private void OnSyncChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task RetryAsync() => await Sync.TriggerSyncAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        Sync.OnChanged -= OnSyncChanged;
+        await Sync.DisposeAsync();
+    }
+}

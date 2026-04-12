@@ -25,6 +25,7 @@ builder.Services.AddScoped<ShadowLedgerService>();
 builder.Services.AddScoped<IndexedDbService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<ThemeService>();
+builder.Services.AddScoped<SyncService>();
 
 // Seed data service
 builder.Services.AddScoped<SeedDataService>();

@@ -240,7 +240,7 @@ public class SeedDataService
 
         foreach (var animal in animals)
         {
-            await _db.PutAsync("animals", animal);
+            await _db.PutAsync("animals", animal, skipQueue: true);
         }
     }
 
@@ -303,7 +303,7 @@ public class SeedDataService
 
         foreach (var record in matingRecords)
         {
-            await _db.PutAsync("matingRecords", record);
+            await _db.PutAsync("matingRecords", record, skipQueue: true);
         }
     }
 
@@ -361,7 +361,7 @@ public class SeedDataService
 
         foreach (var record in heatRecords)
         {
-            await _db.PutAsync("heatRecords", record);
+            await _db.PutAsync("heatRecords", record, skipQueue: true);
         }
     }
 
@@ -459,7 +459,7 @@ public class SeedDataService
 
         foreach (var log in medicalLogs)
         {
-            await _db.PutAsync("medicalLogs", log);
+            await _db.PutAsync("medicalLogs", log, skipQueue: true);
         }
     }
 
@@ -587,7 +587,7 @@ public class SeedDataService
 
         foreach (var entry in costEntries)
         {
-            await _db.PutAsync("costEntries", entry);
+            await _db.PutAsync("costEntries", entry, skipQueue: true);
         }
     }
 
@@ -611,6 +611,6 @@ public class SeedDataService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _db.PutAsync("farmSettings", settings);
+        await _db.PutAsync("farmSettings", settings, skipQueue: true);
     }
 }
