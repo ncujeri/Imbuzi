@@ -89,10 +89,17 @@
                             <span class="chip @StatusChipClass(a.Status)">@a.Status</span>
                         </div>
                     </div>
-                    <button class="edit-btn" @onclick:stopPropagation="true"
-                        @onclick="() => EditAnimal(a.Id)" title="Edit">
-                        &#9998;
-                    </button>
+                    <div class="animal-row-actions" @onclick:stopPropagation="true">
+                        @if (a.Status == AnimalStatus.Sold)
+                        {
+                            <button class="pnl-btn" @onclick="() => ViewSaleReport(a.Id)" title="Sale P&L">
+                                &#128200;
+                            </button>
+                        }
+                        <button class="edit-btn" @onclick="() => EditAnimal(a.Id)" title="Edit">
+                            &#9998;
+                        </button>
+                    </div>
                 </div>
             }
         </div>
@@ -167,6 +174,7 @@
         _                     => "chip-muted"
     };
 
-    private void ViewPassport(Guid id) => Navigation.NavigateTo($"/passport/{id}");
-    private void EditAnimal(Guid id)   => Navigation.NavigateTo($"/animals/{id}/edit");
+    private void ViewPassport(Guid id)   => Navigation.NavigateTo($"/passport/{id}");
+    private void EditAnimal(Guid id)     => Navigation.NavigateTo($"/animals/{id}/edit");
+    private void ViewSaleReport(Guid id) => Navigation.NavigateTo($"/animals/{id}/sale-report");
 }

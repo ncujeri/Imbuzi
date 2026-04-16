@@ -1,0 +1,302 @@
+/* ── Sale Report page ── */
+.sale-report-page {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+/* ── Page header ── */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.page-header .page-title { flex: 1; }
+
+.edit-sale-link {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+.edit-sale-link:hover { color: var(--text-primary); }
+
+/* ── Animal header strip ── */
+.report-animal-header {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    background: var(--surface-2, var(--card-bg));
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.report-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--surface-3, rgba(255,255,255,0.07));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.report-avatar-img { width: 100%; height: 100%; object-fit: cover; }
+.report-avatar-fallback { font-size: 1.6rem; line-height: 1; }
+
+.report-animal-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.report-animal-meta {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-top: 0.15rem;
+}
+
+.meta-tag {
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: var(--green-teal-dim, rgba(52,152,103,0.15));
+    color: var(--green-bright, #2ecc71);
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+}
+
+.meta-breed {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+}
+
+.report-age-at-sale {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+}
+
+/* ── Shared card ── */
+.report-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.report-card-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 0.85rem;
+}
+
+/* ── Detail rows ── */
+.report-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--border-color);
+    gap: 0.5rem;
+}
+
+.report-detail-row:last-child { border-bottom: none; }
+
+.report-detail-label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.report-detail-value {
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    font-weight: 500;
+    text-align: right;
+}
+
+.sale-price-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--green-bright, #2ecc71);
+}
+
+/* ── Cost breakdown ── */
+.cost-category-group {
+    margin-bottom: 1rem;
+}
+
+.cost-category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.3rem;
+}
+
+.cost-cat-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.cost-cat-total {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.breakdown-bar-wrap {
+    height: 5px;
+    background: var(--surface-3, rgba(255,255,255,0.07));
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.breakdown-bar {
+    height: 100%;
+    background: var(--green-bright, #2ecc71);
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+
+/* ── Individual cost entry rows ── */
+.cost-entry-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid var(--border-color);
+}
+
+.cost-entry-row {
+    display: grid;
+    grid-template-columns: 90px 1fr auto;
+    gap: 0.5rem;
+    align-items: baseline;
+    padding: 0.2rem 0;
+}
+
+.cost-entry-date {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.cost-entry-desc {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cost-entry-amount {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* ── Cost total row ── */
+.cost-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 2px solid var(--border-color);
+    padding-top: 0.65rem;
+    margin-top: 0.5rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.cost-total-amount { color: var(--text-primary); }
+
+.report-no-costs {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 0.5rem 0 1rem;
+}
+
+.report-unallocated-note {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 0.6rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--border-color);
+}
+
+/* ── P&L Summary card ── */
+.pnl-summary-card {
+    border-color: var(--border-color);
+}
+
+.pnl-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.45rem 0;
+    font-size: 0.9rem;
+}
+
+.pnl-label { color: var(--text-secondary); }
+.pnl-value { font-weight: 600; color: var(--text-primary); }
+.pnl-cost  { color: #e74c3c; }
+
+.pnl-divider {
+    height: 2px;
+    background: var(--border-color);
+    margin: 0.4rem 0;
+}
+
+.pnl-net-row {
+    padding: 0.5rem 0;
+}
+
+.pnl-net-label {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.pnl-net-value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.pnl-profit { color: #2ecc71; }
+.pnl-loss   { color: #e74c3c; }
+
+.pnl-roi {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    text-align: right;
+    padding-top: 0.1rem;
+}
+
+/* ── Mobile tweaks ── */
+@media (max-width: 420px) {
+    .cost-entry-row {
+        grid-template-columns: 80px 1fr auto;
+        gap: 0.35rem;
+    }
+
+    .cost-entry-desc { font-size: 0.72rem; }
+}

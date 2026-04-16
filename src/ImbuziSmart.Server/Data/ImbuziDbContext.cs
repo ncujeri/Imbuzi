@@ -48,6 +48,7 @@ public class ImbuziDbContext : DbContext
             entity.HasIndex(a => new { a.TenantId, a.Tag }).IsUnique();
             entity.Property(a => a.Tag).HasMaxLength(50);
             entity.Property(a => a.Name).HasMaxLength(100);
+            entity.Property(a => a.SalePrice).HasPrecision(18, 2);
 
             // Computed properties — not mapped
             entity.Ignore(a => a.Photos);

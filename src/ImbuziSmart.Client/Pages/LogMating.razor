@@ -1,0 +1,317 @@
+@page "/mating/new"
+@using System.ComponentModel.DataAnnotations
+@inject NavigationManager Navigation
+@inject IndexedDbService Db
+
+<PageTitle>Record Mating - iMbuzi Smart</PageTitle>
+
+<div class="log-mating-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick="GoBack">&#8592; Back</button>
+        <h2 class="page-title">Record Mating</h2>
+    </div>
+
+    @if (_loaded && (_bucks.Count == 0 || _does.Count == 0))
+    {
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#128016;</span>
+            @if (_bucks.Count == 0 && _does.Count == 0)
+            {
+                <p>You need at least one active buck and one active doe to record a mating.</p>
+            }
+            else if (_bucks.Count == 0)
+            {
+                <p>No active bucks found. Add a male animal first.</p>
+            }
+            else
+            {
+                <p>No active does found. Add a female animal first.</p>
+            }
+            <button class="btn-primary" @onclick='() => Navigation.NavigateTo("animals/new")'>
+                Add Animal
+            </button>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_form" OnValidSubmit="SaveAsync" class="mating-form">
+            <DataAnnotationsValidator />
+
+            <!-- Buck selector -->
+            <div class="form-section">
+                <h3 class="form-section-title">&#9794; Select Buck (Male)</h3>
+
+                <div class="form-group">
+                    <label for="buck">Buck <span class="required">*</span></label>
+                    <InputSelect id="buck" @bind-Value="_form.BuckId" class="form-select"
+                        @oninput="OnBuckChanged">
+                        <option value="">&#8212; Choose a buck &#8212;</option>
+                        @foreach (var buck in _bucks)
+                        {
+                            <option value="@buck.Id">@buck.Name (@buck.Tag)</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="@(() => _form.BuckId)" class="validation-msg" />
+                </div>
+
+                @if (_selectedBuck is not null)
+                {
+                    <div class="doe-summary">
+                        <span class="doe-chip">@(_selectedBuck.Breed ?? _selectedBuck.Species.ToString())</span>
+                        <span class="doe-chip chip-teal">&#9794; Buck</span>
+                    </div>
+                }
+            </div>
+
+            <!-- Doe selector -->
+            <div class="form-section">
+                <h3 class="form-section-title">&#9792; Select Doe (Female)</h3>
+
+                <div class="form-group">
+                    <label for="doe">Doe <span class="required">*</span></label>
+                    <InputSelect id="doe" @bind-Value="_form.DoeId" class="form-select"
+                        @oninput="OnDoeChanged">
+                        <option value="">&#8212; Choose a doe &#8212;</option>
+                        @foreach (var doe in _does)
+                        {
+                            <option value="@doe.Id">@doe.Name (@doe.Tag)</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="@(() => _form.DoeId)" class="validation-msg" />
+                </div>
+
+                @if (_selectedDoe is not null)
+                {
+                    <div class="doe-summary">
+                        <span class="doe-chip">@(_selectedDoe.Breed ?? _selectedDoe.Species.ToString())</span>
+                        @if (_lastMating is not null)
+                        {
+                            <span class="doe-chip chip-teal">
+                                Last mated: @_lastMating.MatingDate.ToString("dd MMM yyyy")
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="doe-chip chip-muted">No previous mating records</span>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- Mating details -->
+            <div class="form-section">
+                <h3 class="form-section-title">Mating Details</h3>
+
+                <div class="form-group">
+                    <label for="matingDate">Date of Mating <span class="required">*</span></label>
+                    <InputDate id="matingDate" @bind-Value="_form.MatingDate" class="form-input"
+                        max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    <ValidationMessage For="@(() => _form.MatingDate)" class="validation-msg" />
+                </div>
+
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <InputTextArea id="notes" @bind-Value="_form.Notes" class="form-textarea" rows="3"
+                        placeholder="e.g. Natural mating observed, pen mating, AI procedure..." />
+                </div>
+            </div>
+
+            <!-- Gestation prediction -->
+            @if (_form.MatingDate != default)
+            {
+                var expectedKidding = _form.MatingDate.AddDays(150);
+                var daysToKidding = (expectedKidding - DateTime.Today).Days;
+                <div class="prediction-card">
+                    <div class="prediction-row">
+                        <span class="prediction-label">&#128197; Mating date</span>
+                        <span class="prediction-value">@_form.MatingDate.ToString("dd MMM yyyy")</span>
+                    </div>
+                    <div class="prediction-divider"></div>
+                    <div class="prediction-row highlight">
+                        <span class="prediction-label">&#128020; Expected kidding</span>
+                        <span class="prediction-value">@expectedKidding.ToString("dd MMM yyyy")</span>
+                    </div>
+                    @if (daysToKidding > 0)
+                    {
+                        <div class="prediction-note">~@daysToKidding days away &bull; 150-day gestation</div>
+                    }
+                    else if (daysToKidding == 0)
+                    {
+                        <div class="prediction-note">Kidding expected today!</div>
+                    }
+                    else
+                    {
+                        <div class="prediction-note">Kidding date has passed</div>
+                    }
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="form-error-banner">&#9888; @_errorMessage</div>
+            }
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" @onclick="GoBack"
+                    disabled="@_isSaving">Cancel</button>
+                <button type="submit" class="btn-primary" disabled="@_isSaving">
+                    @(_isSaving ? "Saving\u2026" : "\uD83E\uDD1D Save Mating")
+                </button>
+            </div>
+        </EditForm>
+
+        <!-- Recent mating history for selected doe -->
+        @if (_recentMatings.Count > 0)
+        {
+            <div class="history-section">
+                <h3 class="history-title">Recent Mating History</h3>
+                @foreach (var rec in _recentMatings)
+                {
+                    var buck = _bucks.FirstOrDefault(b => b.Id == rec.BuckId);
+                    var isPast = rec.ExpectedKiddingDate < DateTime.Today;
+                    <div class="history-card">
+                        <div class="history-main">
+                            <span class="history-date">@rec.MatingDate.ToString("dd MMM yyyy")</span>
+                            @if (buck is not null)
+                            {
+                                <span class="doe-chip chip-teal">&#9794; @buck.Name</span>
+                            }
+                        </div>
+                        <div class="mating-history-row">
+                            <span class="history-next">
+                                @if (rec.ActualKiddingDate.HasValue)
+                                {
+                                    <span class="kidding-done">&#9989; Kidded @rec.ActualKiddingDate.Value.ToString("dd MMM yyyy")</span>
+                                }
+                                else if (!isPast)
+                                {
+                                    <span>&#128020; Kidding expected: @rec.ExpectedKiddingDate.ToString("dd MMM yyyy")</span>
+                                }
+                                else
+                                {
+                                    <span class="overdue-label">&#9888;&#65039; Overdue since @rec.ExpectedKiddingDate.ToString("dd MMM yyyy")</span>
+                                }
+                            </span>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(rec.Notes))
+                        {
+                            <p class="history-signs">@rec.Notes</p>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+    private MatingFormModel _form = new();
+    private List<Animal> _bucks = new();
+    private List<Animal> _does = new();
+    private Animal? _selectedBuck;
+    private Animal? _selectedDoe;
+    private MatingRecord? _lastMating;
+    private List<MatingRecord> _recentMatings = new();
+    private bool _isSaving;
+    private bool _loaded;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var all = await Db.GetAllAsync<Animal>("animals");
+            _bucks = all
+                .Where(a => a.Sex == Sex.Male && a.Status == AnimalStatus.Active)
+                .OrderBy(a => a.Name)
+                .ToList();
+            _does = all
+                .Where(a => a.Sex == Sex.Female && a.Status == AnimalStatus.Active)
+                .OrderBy(a => a.Name)
+                .ToList();
+        }
+        catch { }
+        finally { _loaded = true; }
+    }
+
+    private void OnBuckChanged(ChangeEventArgs e)
+    {
+        _selectedBuck = null;
+        if (Guid.TryParse(e.Value?.ToString(), out var id))
+            _selectedBuck = _bucks.FirstOrDefault(b => b.Id == id);
+    }
+
+    private async Task OnDoeChanged(ChangeEventArgs e)
+    {
+        _selectedDoe = null;
+        _lastMating = null;
+        _recentMatings.Clear();
+
+        if (Guid.TryParse(e.Value?.ToString(), out var id))
+        {
+            _selectedDoe = _does.FirstOrDefault(d => d.Id == id);
+            await LoadMatingHistoryAsync(id);
+        }
+    }
+
+    private async Task LoadMatingHistoryAsync(Guid doeId)
+    {
+        try
+        {
+            var all = await Db.GetAllAsync<MatingRecord>("matingRecords");
+            _recentMatings = all
+                .Where(r => r.DoeId == doeId)
+                .OrderByDescending(r => r.MatingDate)
+                .Take(5)
+                .ToList();
+            _lastMating = _recentMatings.FirstOrDefault();
+        }
+        catch { }
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSaving = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var record = new MatingRecord
+            {
+                Id = Guid.NewGuid(),
+                TenantId = DemoTenantId,
+                BuckId = Guid.Parse(_form.BuckId),
+                DoeId = Guid.Parse(_form.DoeId),
+                MatingDate = _form.MatingDate,
+                Notes = string.IsNullOrWhiteSpace(_form.Notes) ? null : _form.Notes.Trim(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await Db.PutAsync("matingRecords", record);
+            Navigation.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save: {ex.Message}";
+            _isSaving = false;
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/");
+
+    private class MatingFormModel
+    {
+        [Required(ErrorMessage = "Please select a buck")]
+        public string BuckId { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Please select a doe")]
+        public string DoeId { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Mating date is required")]
+        public DateTime MatingDate { get; set; } = DateTime.Today;
+
+        public string? Notes { get; set; }
+    }
+}

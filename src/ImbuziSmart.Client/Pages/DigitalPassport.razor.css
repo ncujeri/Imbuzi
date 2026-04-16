@@ -11,7 +11,7 @@
     margin-left: auto;
 }
 
-.share-btn, .print-btn {
+.share-btn, .print-btn, .pnl-btn {
     display: flex;
     align-items: center;
     gap: 0.3rem;
@@ -27,7 +27,7 @@
     white-space: nowrap;
 }
 
-.share-btn:hover:not(:disabled), .print-btn:hover {
+.share-btn:hover:not(:disabled), .print-btn:hover, .pnl-btn:hover {
     background: var(--green-teal);
     color: #fff;
     border-color: var(--green-teal);

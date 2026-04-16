@@ -22,6 +22,12 @@
                 <button class="print-btn" @onclick="PrintPassport" title="Print / Save PDF">
                     &#128438; PDF
                 </button>
+                @if (_animal?.Status == AnimalStatus.Sold)
+                {
+                    <a href="/animals/@AnimalId/sale-report" class="pnl-btn" title="Sale P&amp;L">
+                        &#128200; P&amp;L
+                    </a>
+                }
             </div>
         </div>
 

@@ -1,0 +1,27 @@
+.log-mating-page {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.mating-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* Mating history rows */
+.mating-history-row {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.kidding-done {
+    color: var(--green-bright);
+    font-weight: 600;
+}
+
+.overdue-label {
+    color: #e74c3c;
+    font-weight: 600;
+}

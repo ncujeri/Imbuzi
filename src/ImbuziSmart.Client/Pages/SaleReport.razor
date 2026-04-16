@@ -1,0 +1,245 @@
+@page "/animals/{AnimalId:guid}/sale-report"
+@inject NavigationManager Navigation
+@inject IndexedDbService Db
+
+<PageTitle>Sale P&amp;L - iMbuzi Smart</PageTitle>
+
+<div class="sale-report-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick="GoBack">&#8592; Back</button>
+        <h2 class="page-title">Sale Report</h2>
+        <a href="/animals/@AnimalId/edit" class="edit-sale-link" title="Edit sale details">&#9998; Edit</a>
+    </div>
+
+    @if (!_loaded)
+    {
+        <div class="list-loading">Loading&#8230;</div>
+    }
+    else if (_animal is null)
+    {
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#10060;</span>
+            <p>Animal not found.</p>
+        </div>
+    }
+    else if (_animal.Status != AnimalStatus.Sold)
+    {
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#128203;</span>
+            <p><strong>@_animal.Name</strong> has not been marked as sold yet.</p>
+            <a href="/animals/@AnimalId/edit" class="btn-primary" style="display:inline-block;margin-top:0.75rem">
+                Log Sale
+            </a>
+        </div>
+    }
+    else
+    {
+        <!-- Animal identity strip -->
+        <div class="report-animal-header">
+            <div class="report-avatar">
+                @if (_animal.Photos.Count > 0)
+                {
+                    <img src="data:@_animal.Photos[0].ContentType;base64,@_animal.Photos[0].Base64Data"
+                         alt="@_animal.Name" class="report-avatar-img" />
+                }
+                else
+                {
+                    <span class="report-avatar-fallback">&#128016;</span>
+                }
+            </div>
+            <div class="report-animal-info">
+                <div class="report-animal-name">@_animal.Name</div>
+                <div class="report-animal-meta">
+                    <span class="meta-tag">@_animal.Tag</span>
+                    @if (!string.IsNullOrWhiteSpace(_animal.Breed))
+                    {
+                        <span class="meta-breed">@_animal.Breed</span>
+                    }
+                </div>
+                @if (_animal.DateOfBirth.HasValue && _animal.SaleDate.HasValue)
+                {
+                    var ageAtSale = (_animal.SaleDate.Value - _animal.DateOfBirth.Value).Days;
+                    var years  = ageAtSale / 365;
+                    var months = (ageAtSale % 365) / 30;
+                    <div class="report-age-at-sale">
+                        Age at sale: @(years > 0 ? $"{years}y " : "")@(months > 0 ? $"{months}m" : "")
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Sale details card -->
+        <div class="report-card">
+            <div class="report-card-title">&#128179; Sale Details</div>
+            <div class="report-detail-row">
+                <span class="report-detail-label">Sale Price</span>
+                <span class="report-detail-value sale-price-value">
+                    R @(_animal.SalePrice?.ToString("N2") ?? "—")
+                </span>
+            </div>
+            <div class="report-detail-row">
+                <span class="report-detail-label">Date Sold</span>
+                <span class="report-detail-value">
+                    @(_animal.SaleDate?.ToString("dd MMM yyyy") ?? "—")
+                </span>
+            </div>
+            <div class="report-detail-row">
+                <span class="report-detail-label">Buyer</span>
+                <span class="report-detail-value">
+                    @(_animal.BuyerName ?? "—")
+                </span>
+            </div>
+            @if (_animal.AcquisitionType == "Purchased")
+            {
+                <div class="report-detail-row">
+                    <span class="report-detail-label">Purchased From</span>
+                    <span class="report-detail-value">@(_animal.PurchasedFrom ?? "—")</span>
+                </div>
+                @if (_animal.AcquisitionDate.HasValue)
+                {
+                    var heldDays = _animal.SaleDate.HasValue
+                        ? (_animal.SaleDate.Value - _animal.AcquisitionDate.Value).Days : 0;
+                    <div class="report-detail-row">
+                        <span class="report-detail-label">Days Held</span>
+                        <span class="report-detail-value">@heldDays days</span>
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- Cost breakdown -->
+        <div class="report-card">
+            <div class="report-card-title">&#128203; Costs &amp; Expenses</div>
+
+            @if (_costs.Count == 0)
+            {
+                <p class="report-no-costs">No direct costs logged for this animal.</p>
+            }
+            else
+            {
+                <!-- By-category breakdown bars -->
+                @foreach (var (cat, entries) in _byCategory)
+                {
+                    var catTotal = entries.Sum(e => e.Amount);
+                    var pct = _totalCosts > 0 ? (double)catTotal / (double)_totalCosts * 100 : 0;
+                    <div class="cost-category-group">
+                        <div class="cost-category-header">
+                            <span class="cost-cat-label">
+                                @LogCost.CategoryEmoji(cat) @cat
+                            </span>
+                            <span class="cost-cat-total">R @catTotal.ToString("N2")</span>
+                        </div>
+                        <div class="breakdown-bar-wrap">
+                            <div class="breakdown-bar" style="width:@pct.ToString("0.0")%"></div>
+                        </div>
+
+                        <!-- Individual entries under this category -->
+                        <div class="cost-entry-list">
+                            @foreach (var entry in entries.OrderByDescending(e => e.Date))
+                            {
+                                <div class="cost-entry-row">
+                                    <span class="cost-entry-date">@entry.Date.ToString("dd MMM yyyy")</span>
+                                    <span class="cost-entry-desc">@(entry.Description ?? cat.ToString())</span>
+                                    <span class="cost-entry-amount">R @entry.Amount.ToString("N2")</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+            <div class="cost-total-row">
+                <span>Total Direct Costs</span>
+                <span class="cost-total-amount">R @_totalCosts.ToString("N2")</span>
+            </div>
+
+            @if (_unallocatedCount > 0)
+            {
+                <p class="report-unallocated-note">
+                    &#8505; @_unallocatedCount farm-wide cost
+                    @(_unallocatedCount == 1 ? "entry" : "entries") (not assigned to any animal)
+                    not included.
+                </p>
+            }
+        </div>
+
+        <!-- P&L Summary -->
+        <div class="report-card pnl-summary-card">
+            <div class="report-card-title">&#9989; Profit &amp; Loss Summary</div>
+
+            <div class="pnl-row">
+                <span class="pnl-label">Sale Price</span>
+                <span class="pnl-value">R @(_salePrice.ToString("N2"))</span>
+            </div>
+            <div class="pnl-row">
+                <span class="pnl-label">Total Costs</span>
+                <span class="pnl-value pnl-cost">&#8722; R @_totalCosts.ToString("N2")</span>
+            </div>
+
+            <div class="pnl-divider"></div>
+
+            <div class="pnl-row pnl-net-row">
+                <span class="pnl-net-label">Net @(_netPnl >= 0 ? "Profit" : "Loss")</span>
+                <span class="pnl-net-value @(_netPnl >= 0 ? "pnl-profit" : "pnl-loss")">
+                    @(_netPnl >= 0 ? "+" : "")R @_netPnl.ToString("N2")
+                </span>
+            </div>
+
+            @if (_totalCosts > 0)
+            {
+                var roi = (double)_netPnl / (double)_totalCosts * 100;
+                <div class="pnl-roi">
+                    ROI: <strong class="@(_netPnl >= 0 ? "pnl-profit" : "pnl-loss")">
+                        @(roi >= 0 ? "+" : "")@roi.ToString("0.0")%
+                    </strong>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid AnimalId { get; set; }
+
+    private Animal? _animal;
+    private List<CostEntry> _costs = new();
+    private Dictionary<CostCategory, List<CostEntry>> _byCategory = new();
+    private int _unallocatedCount;
+    private decimal _totalCosts;
+    private decimal _salePrice;
+    private decimal _netPnl;
+    private bool _loaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _animal = await Db.GetAsync<Animal>("animals", AnimalId);
+
+            if (_animal?.Status == AnimalStatus.Sold)
+            {
+                var allCosts = await Db.GetAllAsync<CostEntry>("costEntries");
+
+                _costs = allCosts
+                    .Where(c => c.AnimalId == AnimalId)
+                    .OrderByDescending(c => c.Date)
+                    .ToList();
+
+                _unallocatedCount = allCosts.Count(c => c.AnimalId is null);
+
+                _byCategory = _costs
+                    .GroupBy(c => c.Category)
+                    .OrderByDescending(g => g.Sum(c => c.Amount))
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                _totalCosts = _costs.Sum(c => c.Amount);
+                _salePrice  = _animal.SalePrice ?? 0m;
+                _netPnl     = _salePrice - _totalCosts;
+            }
+        }
+        catch { }
+        finally { _loaded = true; }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/animals");
+}
