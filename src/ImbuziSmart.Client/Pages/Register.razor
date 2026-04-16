@@ -1,0 +1,141 @@
+@page "/register"
+@layout EmptyLayout
+@using System.ComponentModel.DataAnnotations
+@using ImbuziSmart.Shared.Auth
+@inject AuthService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Create Your Farm - iMbuzi Smart</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <img src="/images/logo-icon.png" alt="iMbuzi Smart"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+            <span class="auth-logo-fallback" style="display:none">&#128016;</span>
+        </div>
+        <h1 class="auth-title">Create Your Farm</h1>
+        <p class="auth-subtitle">Get started with iMbuzi Smart — free forever</p>
+
+        <EditForm Model="_form" OnValidSubmit="HandleRegisterAsync" class="auth-form">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label for="farmName">Farm Name <span class="required">*</span></label>
+                <InputText id="farmName" @bind-Value="_form.FarmName" class="form-input"
+                           placeholder="e.g. Ntsiba Goat Farm" />
+                <ValidationMessage For="@(() => _form.FarmName)" class="validation-msg" />
+            </div>
+
+            <div class="auth-name-row">
+                <div class="form-group">
+                    <label for="firstName">First Name <span class="required">*</span></label>
+                    <InputText id="firstName" @bind-Value="_form.FirstName" class="form-input"
+                               placeholder="Sipho" />
+                    <ValidationMessage For="@(() => _form.FirstName)" class="validation-msg" />
+                </div>
+                <div class="form-group">
+                    <label for="lastName">Last Name <span class="required">*</span></label>
+                    <InputText id="lastName" @bind-Value="_form.LastName" class="form-input"
+                               placeholder="Dlamini" />
+                    <ValidationMessage For="@(() => _form.LastName)" class="validation-msg" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email <span class="required">*</span></label>
+                <InputText id="email" @bind-Value="_form.Email" class="form-input"
+                           type="email" autocomplete="email" placeholder="you@farm.co.za" />
+                <ValidationMessage For="@(() => _form.Email)" class="validation-msg" />
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password <span class="required">*</span></label>
+                <InputText id="password" @bind-Value="_form.Password" class="form-input"
+                           type="password" autocomplete="new-password" placeholder="At least 6 characters" />
+                <ValidationMessage For="@(() => _form.Password)" class="validation-msg" />
+            </div>
+
+            <div class="form-group">
+                <label for="confirm">Confirm Password <span class="required">*</span></label>
+                <InputText id="confirm" @bind-Value="_form.ConfirmPassword" class="form-input"
+                           type="password" autocomplete="new-password" placeholder="Repeat password" />
+                @if (_form.Password != _form.ConfirmPassword && !string.IsNullOrEmpty(_form.ConfirmPassword))
+                {
+                    <span class="validation-msg">Passwords do not match.</span>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="form-error-banner">&#9888; @_error</div>
+            }
+
+            <button type="submit" class="btn-primary auth-submit" disabled="@_busy">
+                @(_busy ? "Creating your farm\u2026" : "&#128016; Create Farm Account")
+            </button>
+        </EditForm>
+
+        <div class="auth-footer">
+            <p>Already have an account? <a href="/login">Sign in</a></p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly RegisterFormModel _form = new();
+    private string _error = string.Empty;
+    private bool   _busy;
+
+    private async Task HandleRegisterAsync()
+    {
+        if (_form.Password != _form.ConfirmPassword)
+        {
+            _error = "Passwords do not match.";
+            return;
+        }
+
+        _busy  = true;
+        _error = string.Empty;
+
+        var (success, error) = await Auth.RegisterAsync(new RegisterRequest
+        {
+            FarmName  = _form.FarmName,
+            FirstName = _form.FirstName,
+            LastName  = _form.LastName,
+            Email     = _form.Email,
+            Password  = _form.Password
+        });
+
+        if (success)
+        {
+            Navigation.NavigateTo("/", forceLoad: false);
+        }
+        else
+        {
+            _error = error ?? "Registration failed. Please try again.";
+            _busy  = false;
+        }
+    }
+
+    private class RegisterFormModel
+    {
+        [Required(ErrorMessage = "Farm name is required")]
+        public string FarmName       { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "First name is required")]
+        public string FirstName      { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Last name is required")]
+        public string LastName       { get; set; } = string.Empty;
+
+        [Required, EmailAddress]
+        public string Email          { get; set; } = string.Empty;
+
+        [Required, MinLength(6, ErrorMessage = "Password must be at least 6 characters")]
+        public string Password       { get; set; } = string.Empty;
+
+        [Required]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

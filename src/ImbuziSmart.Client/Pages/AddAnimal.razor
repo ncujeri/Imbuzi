@@ -1,8 +1,10 @@
 @page "/animals/new"
+@attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @inject NavigationManager Navigation
 @inject IndexedDbService Db
 @inject WeightCalculatorService WeightCalc
+@inject CurrentUserService CurrentUser
 
 <PageTitle>Add Animal - iMbuzi Smart</PageTitle>
 
@@ -301,7 +303,6 @@
 </div>
 
 @code {
-    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
 
     private AnimalFormModel _form = new();
     private List<Animal> _males = new();
@@ -393,11 +394,12 @@
                 p.FileName, p.ContentType, p.Base64Data, DateTime.UtcNow
             )).ToList();
 
+            var tenantId = await CurrentUser.GetTenantIdAsync();
             var animalId = Guid.NewGuid();
             var animal = new Animal
             {
                 Id              = animalId,
-                TenantId        = DemoTenantId,
+                TenantId        = tenantId,
                 Name            = _form.Name.Trim(),
                 Tag             = _form.Tag.Trim().ToUpperInvariant(),
                 Species         = _form.Species,
@@ -437,7 +439,7 @@
                     var wr = new WeightRecord
                     {
                         Id           = Guid.NewGuid(),
-                        TenantId     = DemoTenantId,
+                        TenantId     = tenantId,
                         AnimalId     = animalId,
                         WeighedAt    = _form.AcquisitionDate ?? _form.DateOfBirth ?? DateTime.Today,
                         Kilograms    = kilograms.Value,

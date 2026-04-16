@@ -1,4 +1,5 @@
 @page "/animals/{AnimalId:guid}/edit"
+@attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @inject NavigationManager Navigation
 @inject IndexedDbService Db
@@ -262,7 +263,6 @@
 @code {
     [Parameter] public Guid AnimalId { get; set; }
 
-    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
 
     private EditFormModel _form = new();
     private List<Animal> _males = new();

@@ -1,8 +1,10 @@
 @page "/medical/new"
+@attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @inject NavigationManager Navigation
 @inject IndexedDbService Db
 @inject WithdrawalPeriodService WithdrawalSvc
+@inject CurrentUserService CurrentUser
 
 <PageTitle>Medical Log - iMbuzi Smart</PageTitle>
 
@@ -208,7 +210,6 @@
 </div>
 
 @code {
-    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
 
     [Parameter, SupplyParameterFromQuery(Name = "animalId")]
     public string? PreselectedAnimalId { get; set; }
@@ -290,10 +291,11 @@
 
         try
         {
+            var tenantId = await CurrentUser.GetTenantIdAsync();
             var record = new MedicalLog
             {
                 Id = Guid.NewGuid(),
-                TenantId = DemoTenantId,
+                TenantId = tenantId,
                 AnimalId = Guid.Parse(_form.AnimalId),
                 TreatmentDate = _form.TreatmentDate,
                 Medication = _form.Medication.Trim(),

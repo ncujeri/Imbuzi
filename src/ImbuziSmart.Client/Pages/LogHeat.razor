@@ -1,7 +1,9 @@
 @page "/heat/new"
+@attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @inject NavigationManager Navigation
 @inject IndexedDbService Db
+@inject CurrentUserService CurrentUser
 
 <PageTitle>Log Heat - iMbuzi Smart</PageTitle>
 
@@ -160,7 +162,6 @@
 </div>
 
 @code {
-    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
 
     private HeatFormModel _form = new();
     private List<Animal> _females = new();
@@ -222,10 +223,11 @@
 
         try
         {
+            var tenantId = await CurrentUser.GetTenantIdAsync();
             var record = new HeatRecord
             {
                 Id = Guid.NewGuid(),
-                TenantId = DemoTenantId,
+                TenantId = tenantId,
                 AnimalId = Guid.Parse(_form.AnimalId),
                 ObservedDate = _form.ObservedDate,
                 Intensity = _form.Intensity,

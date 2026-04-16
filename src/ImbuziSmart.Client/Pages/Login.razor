@@ -1,0 +1,91 @@
+@page "/login"
+@layout EmptyLayout
+@using System.ComponentModel.DataAnnotations
+@using ImbuziSmart.Shared.Auth
+@inject AuthService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Sign In - iMbuzi Smart</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <img src="/images/logo-icon.png" alt="iMbuzi Smart"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+            <span class="auth-logo-fallback" style="display:none">&#128016;</span>
+        </div>
+        <h1 class="auth-title">iMbuzi Smart</h1>
+        <p class="auth-subtitle">Measure &amp; Manage Livestock</p>
+
+        <EditForm Model="_form" OnValidSubmit="HandleLoginAsync" class="auth-form">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <InputText id="email" @bind-Value="_form.Email" class="form-input"
+                           type="email" autocomplete="email" placeholder="you@farm.co.za" />
+                <ValidationMessage For="@(() => _form.Email)" class="validation-msg" />
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <InputText id="password" @bind-Value="_form.Password" class="form-input"
+                           type="password" autocomplete="current-password" placeholder="••••••••" />
+                <ValidationMessage For="@(() => _form.Password)" class="validation-msg" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="form-error-banner">&#9888; @_error</div>
+            }
+
+            <button type="submit" class="btn-primary auth-submit" disabled="@_busy">
+                @(_busy ? "Signing in\u2026" : "Sign In")
+            </button>
+        </EditForm>
+
+        <div class="auth-footer">
+            <p>Don't have an account? <a href="/register">Create your farm</a></p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly LoginFormModel _form  = new();
+    private string _error = string.Empty;
+    private bool   _busy;
+
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    private async Task HandleLoginAsync()
+    {
+        _busy  = true;
+        _error = string.Empty;
+
+        var (success, error) = await Auth.LoginAsync(new LoginRequest
+        {
+            Email    = _form.Email,
+            Password = _form.Password
+        });
+
+        if (success)
+        {
+            Navigation.NavigateTo(ReturnUrl ?? "/", forceLoad: false);
+        }
+        else
+        {
+            _error = error ?? "Login failed.";
+            _busy  = false;
+        }
+    }
+
+    private class LoginFormModel
+    {
+        [Required, EmailAddress]
+        public string Email    { get; set; } = string.Empty;
+
+        [Required]
+        public string Password { get; set; } = string.Empty;
+    }
+}

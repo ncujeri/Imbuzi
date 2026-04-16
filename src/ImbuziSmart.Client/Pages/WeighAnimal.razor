@@ -1,8 +1,10 @@
 @page "/weight/new"
+@attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @inject NavigationManager Navigation
 @inject IndexedDbService Db
 @inject WeightCalculatorService WeightCalc
+@inject CurrentUserService CurrentUser
 
 <PageTitle>Weigh Animal - iMbuzi Smart</PageTitle>
 
@@ -228,7 +230,6 @@
 </div>
 
 @code {
-    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
 
     [Parameter, SupplyParameterFromQuery(Name = "animalId")]
     public string? PreselectedAnimalId { get; set; }
@@ -353,6 +354,7 @@
 
         try
         {
+            var tenantId = await CurrentUser.GetTenantIdAsync();
             double kilograms;
             if (_form.Method == "HeartGirth")
             {
@@ -387,7 +389,7 @@
             var record = new WeightRecord
             {
                 Id = Guid.NewGuid(),
-                TenantId = DemoTenantId,
+                TenantId = tenantId,
                 AnimalId = Guid.Parse(_form.AnimalId),
                 WeighedAt = _form.WeighedAt,
                 Kilograms = kilograms,

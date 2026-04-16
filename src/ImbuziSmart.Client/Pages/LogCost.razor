@@ -1,7 +1,9 @@
 @page "/cost/new"
+@attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @inject NavigationManager Navigation
 @inject IndexedDbService Db
+@inject CurrentUserService CurrentUser
 
 <PageTitle>Log Cost - iMbuzi Smart</PageTitle>
 
@@ -88,7 +90,6 @@
 </div>
 
 @code {
-    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
 
     [Parameter, SupplyParameterFromQuery(Name = "animalId")]
     public string? PreselectedAnimalId { get; set; }
@@ -121,10 +122,11 @@
         _errorMessage = string.Empty;
         try
         {
+            var tenantId = await CurrentUser.GetTenantIdAsync();
             var entry = new CostEntry
             {
                 Id = Guid.NewGuid(),
-                TenantId = DemoTenantId,
+                TenantId = tenantId,
                 AnimalId = string.IsNullOrEmpty(_form.AnimalId) ? null : Guid.Parse(_form.AnimalId),
                 Category = _form.Category,
                 Amount = _form.Amount!.Value,

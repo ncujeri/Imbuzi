@@ -1,7 +1,9 @@
 @page "/mating/new"
+@attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @inject NavigationManager Navigation
 @inject IndexedDbService Db
+@inject CurrentUserService CurrentUser
 
 <PageTitle>Record Mating - iMbuzi Smart</PageTitle>
 
@@ -205,7 +207,6 @@
 </div>
 
 @code {
-    private static readonly Guid DemoTenantId = new("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
 
     private MatingFormModel _form = new();
     private List<Animal> _bucks = new();
@@ -278,10 +279,11 @@
 
         try
         {
+            var tenantId = await CurrentUser.GetTenantIdAsync();
             var record = new MatingRecord
             {
                 Id = Guid.NewGuid(),
-                TenantId = DemoTenantId,
+                TenantId = tenantId,
                 BuckId = Guid.Parse(_form.BuckId),
                 DoeId = Guid.Parse(_form.DoeId),
                 MatingDate = _form.MatingDate,

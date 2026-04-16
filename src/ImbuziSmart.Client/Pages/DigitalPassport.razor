@@ -1,5 +1,6 @@
 @page "/passport"
 @page "/passport/{AnimalId:guid}"
+@attribute [Authorize]
 @inject IndexedDbService Db
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
