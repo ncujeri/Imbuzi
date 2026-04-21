@@ -13,7 +13,17 @@
         <h2 class="page-title">Log Heat</h2>
     </div>
 
-    @if (_females.Count == 0 && _loaded)
+    @if (_loaded && !_heatEnabled)
+    {
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#128149;</span>
+            <p>Heat Cycle Tracking is currently disabled.</p>
+            <a href="/settings" class="btn-primary" style="display:inline-block;margin-top:0.75rem">
+                Enable in Settings
+            </a>
+        </div>
+    }
+    else if (_females.Count == 0 && _loaded)
     {
         <div class="empty-notice">
             <span class="empty-notice-icon">&#128016;</span>
@@ -110,9 +120,9 @@
                     <div class="prediction-divider"></div>
                     <div class="prediction-row highlight">
                         <span class="prediction-label">&#9200; Next expected heat</span>
-                        <span class="prediction-value">@_form.ObservedDate.AddDays(21).ToString("dd MMM yyyy")</span>
+                        <span class="prediction-value">@_form.ObservedDate.AddDays(_heatCycleDays).ToString("dd MMM yyyy")</span>
                     </div>
-                    <div class="prediction-note">Based on 21-day cycle &bull; Set in Farm Settings</div>
+                    <div class="prediction-note">Based on @_heatCycleDays-day cycle &bull; Set in Farm Settings</div>
                 </div>
             }
 
@@ -170,12 +180,21 @@
     private List<HeatRecord> _recentRecords = new();
     private bool _isSaving;
     private bool _loaded;
+    private bool _heatEnabled = true;
+    private int _heatCycleDays = 21;
     private string _errorMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            var settings = (await Db.GetAllAsync<FarmSettings>("farmSettings")).FirstOrDefault();
+            if (settings is not null)
+            {
+                _heatEnabled   = settings.EnableHeatTracking;
+                _heatCycleDays = settings.HeatCycleDays;
+            }
+
             var all = await Db.GetAllAsync<Animal>("animals");
             _females = all
                 .Where(a => a.Sex == Sex.Female && a.Status == AnimalStatus.Active)

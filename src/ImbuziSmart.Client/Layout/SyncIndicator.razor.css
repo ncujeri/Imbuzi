@@ -1,4 +1,9 @@
-/* ── Sync status chip ── */
+/* ── Wrapper (positions the panel relative to the chip) ── */
+.sync-wrapper {
+    position: relative;
+}
+
+/* ── Status chip ── */
 .sync-indicator {
     display: inline-flex;
     align-items: center;
@@ -12,6 +17,15 @@
     line-height: 1.2;
 }
 
+.sync-clickable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.sync-clickable:hover {
+    filter: brightness(1.15);
+}
+
 .sync-icon {
     font-size: 0.85rem;
     line-height: 1;
@@ -23,9 +37,15 @@
     text-overflow: ellipsis;
 }
 
-/* States */
+.sync-chevron {
+    font-size: 0.6rem;
+    opacity: 0.7;
+    margin-left: 0.1rem;
+}
+
+/* Chip state colours */
 .sync-syncing {
-    background: rgba(var(--green-teal-rgb, 52, 152, 103), 0.15);
+    background: rgba(52, 152, 103, 0.15);
     color: var(--green-bright, #2ecc71);
     animation: sync-pulse 1.2s ease-in-out infinite;
 }
@@ -45,7 +65,7 @@
     color: var(--text-muted, #95a5a6);
 }
 
-/* Retry button inside the failed chip */
+/* Retry button inside failed chip */
 .sync-retry {
     background: none;
     border: 1px solid currentColor;
@@ -64,6 +84,166 @@
     background: rgba(231, 76, 60, 0.2);
 }
 
+/* ── Backdrop ── */
+.sync-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 299;
+    background: transparent;
+}
+
+/* ── Detail panel ── */
+.sync-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 280px;
+    max-width: 340px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-accent);
+    border-radius: 14px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(46, 204, 113, 0.06);
+    z-index: 300;
+    overflow: hidden;
+    animation: syncPanelIn 0.16s cubic-bezier(0.34, 1.4, 0.64, 1);
+    transform-origin: top right;
+}
+
+@keyframes syncPanelIn {
+    from { opacity: 0; transform: scale(0.93) translateY(-6px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+/* Green accent strip */
+.sync-panel::before {
+    content: '';
+    display: block;
+    height: 3px;
+    background: linear-gradient(90deg, var(--green-bright, #2ecc71), var(--green-teal, #1abc9c));
+}
+
+.sync-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 0.9rem 0.5rem;
+    border-bottom: 1px solid var(--border-default);
+}
+
+.sync-panel-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.sync-panel-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s;
+    font-family: inherit;
+}
+
+.sync-panel-close:hover {
+    background: var(--bg-overlay);
+    color: var(--text-primary);
+}
+
+/* ── Item list ── */
+.sync-panel-list {
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 0.35rem 0;
+}
+
+.sync-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding: 0.45rem 0.9rem;
+    transition: background 0.12s;
+}
+
+.sync-item:hover {
+    background: var(--bg-overlay);
+}
+
+.sync-item-icon {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    flex-shrink: 0;
+    min-width: 1rem;
+    text-align: center;
+}
+
+.sync-item-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.sync-item-name {
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sync-item-meta {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.sync-item-error {
+    font-size: 0.7rem;
+    color: #e74c3c;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Item state icon colours */
+.sync-item-pending  .sync-item-icon { color: var(--text-muted); }
+.sync-item-syncing  .sync-item-icon { color: var(--green-bright, #2ecc71); animation: sync-pulse 1.2s ease-in-out infinite; }
+.sync-item-synced   .sync-item-icon { color: #2ecc71; }
+.sync-item-failed   .sync-item-icon { color: #e74c3c; }
+
+/* ── Footer (retry) ── */
+.sync-panel-footer {
+    border-top: 1px solid var(--border-default);
+    padding: 0.55rem 0.9rem;
+}
+
+.sync-retry-full {
+    width: 100%;
+    background: rgba(231, 76, 60, 0.08);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    border-radius: 8px;
+    color: #e74c3c;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: inherit;
+    padding: 0.45rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.sync-retry-full:hover {
+    background: rgba(231, 76, 60, 0.15);
+}
+
+/* ── Pulse animation ── */
 @keyframes sync-pulse {
     0%, 100% { opacity: 1; }
     50%       { opacity: 0.55; }

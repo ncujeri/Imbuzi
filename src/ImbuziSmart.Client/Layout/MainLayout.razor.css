@@ -60,32 +60,210 @@
     display: block;
 }
 
-/* Theme toggle */
-.theme-toggle {
+/* Theme toggle — inside profile dropdown */
+.profile-theme-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.8rem 1.1rem;
     background: none;
-    border: 1px solid var(--border-default);
-    border-radius: 20px;
-    padding: 0.25rem 0.6rem;
-    font-size: 1.1rem;
+    border: none;
+    border-radius: 0;
     cursor: pointer;
-    line-height: 1;
+    font-size: 0.88rem;
+    font-weight: 500;
+    font-family: inherit;
     color: var(--text-secondary);
-    transition: background 0.2s, border-color 0.2s;
-    margin-right: 0.25rem;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
 }
 
-.theme-toggle:active { background: var(--bg-overlay); }
+.profile-theme-toggle:hover {
+    background: var(--bg-overlay);
+    color: var(--text-primary);
+}
 
-.settings-link {
-    font-size: 1.5rem;
+/* ── Profile avatar & dropdown ── */
+.profile-menu {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.profile-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--green-bright) 0%, var(--green-forest) 100%);
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 800;
+    border: 2px solid rgba(46, 204, 113, 0.45);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 10px rgba(46, 204, 113, 0.28);
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+    /* Blazor button reset */
+    padding: 0;
+    font-family: inherit;
+}
+
+.profile-avatar:hover {
+    border-color: var(--green-bright);
+    box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.18), 0 2px 12px rgba(46, 204, 113, 0.35);
+    transform: scale(1.06);
+}
+
+.profile-avatar:active {
+    transform: scale(0.94);
+}
+
+/* Transparent full-screen backdrop to catch outside clicks */
+.profile-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 299;
+    background: transparent;
+}
+
+.profile-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    min-width: 248px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-accent);
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(46, 204, 113, 0.06);
+    z-index: 300;
+    overflow: hidden;
+    animation: profileDropIn 0.18s cubic-bezier(0.34, 1.4, 0.64, 1);
+    transform-origin: top right;
+}
+
+/* Slide-in animation */
+@keyframes profileDropIn {
+    from { opacity: 0; transform: scale(0.93) translateY(-6px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+/* Green gradient accent strip at top of dropdown */
+.profile-dropdown::before {
+    content: '';
+    display: block;
+    height: 3px;
+    background: linear-gradient(90deg, var(--green-bright), var(--green-teal));
+}
+
+.profile-info {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 1rem 1.1rem 0.9rem;
+}
+
+.profile-avatar-lg {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--green-bright) 0%, var(--green-forest) 100%);
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    letter-spacing: 0.5px;
+    box-shadow: 0 3px 12px rgba(46, 204, 113, 0.35);
+    border: 2px solid rgba(46, 204, 113, 0.3);
+}
+
+.profile-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+    min-width: 0;
+}
+
+.profile-fullname {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.25;
+}
+
+.profile-farmname {
+    font-size: 0.76rem;
+    color: var(--green-teal);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+.profile-divider {
+    height: 1px;
+    background: var(--border-default);
+    margin: 0 0.9rem;
+}
+
+.profile-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.8rem 1.1rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--text-secondary);
     text-decoration: none;
-    line-height: 1;
-    color: var(--text-secondary);
+    transition: background 0.15s, color 0.15s;
 }
 
-/* Hide the gear icon in the header when sidebar is visible (settings is in sidebar) */
+.profile-nav-item:hover {
+    background: var(--bg-overlay);
+    color: var(--text-primary);
+}
+
+/* Hide profile-only nav items on tablet/desktop where the sidebar is visible */
 @media (min-width: 768px) {
-    .settings-link { display: none; }
+    .profile-mobile-nav-only { display: none; }
+}
+
+.profile-logout {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.8rem 1.1rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--text-secondary);
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
+    margin: 0.2rem 0;
+}
+
+.profile-logout:hover {
+    background: rgba(231, 76, 60, 0.08);
+    color: #e8796c;
 }
 
 /* ── Body row (sidebar + main) ── */

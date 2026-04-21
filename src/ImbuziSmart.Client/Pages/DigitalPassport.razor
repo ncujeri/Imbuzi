@@ -219,6 +219,35 @@
                 </div>
             }
 
+            <!-- Activity / Audit -->
+            <div class="passport-section">
+                <h3 class="section-title">&#128221; Activity</h3>
+                <div class="detail-grid">
+                    <div class="detail-row">
+                        <span class="detail-label">Added by</span>
+                        <span>@(_animal.CreatedBy ?? "Unknown")</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Added on</span>
+                        <span>@_animal.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</span>
+                    </div>
+                    @if (_animal.LastModifiedBy is not null)
+                    {
+                        <div class="detail-row">
+                            <span class="detail-label">Last edited by</span>
+                            <span>@_animal.LastModifiedBy</span>
+                        </div>
+                    }
+                    @if (_animal.UpdatedAt.HasValue)
+                    {
+                        <div class="detail-row">
+                            <span class="detail-label">Last edited on</span>
+                            <span>@_animal.UpdatedAt.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</span>
+                        </div>
+                    }
+                </div>
+            </div>
+
             <!-- Quick Actions -->
             <div class="passport-actions">
                 <a href="/weight/new?animalId=@_animal.Id" class="action-btn">&#9878; Weigh</a>

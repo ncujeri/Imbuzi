@@ -91,6 +91,9 @@ public class IndexedDbService
     public async Task AddToSyncQueueAsync(string entityType, Guid entityId, string action)
         => await _js.InvokeVoidAsync("imbuziDb.addToSyncQueue", entityType, entityId.ToString(), action);
 
+    public async Task ClearStoreAsync(string storeName)
+        => await _js.InvokeVoidAsync("imbuziDb.clearStore", storeName);
+
     public async Task<bool> IsOnlineAsync()
         => await _js.InvokeAsync<bool>("imbuziDb.isOnline");
 }

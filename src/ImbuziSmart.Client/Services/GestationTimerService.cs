@@ -5,7 +5,6 @@ namespace ImbuziSmart.Client.Services;
 public class GestationTimerService
 {
     public const int GestationDays = 150;
-    public const int KiddingWatchDays = 145;
     public const int WeaningDaysPostBirth = 90;
 
     public record GestationStatus(
@@ -20,11 +19,11 @@ public class GestationTimerService
         bool IsWeaningDue
     );
 
-    public GestationStatus GetStatus(MatingRecord record, DateTime? asOfDate = null)
+    public GestationStatus GetStatus(MatingRecord record, DateTime? asOfDate = null, int kiddingWatchDaysBefore = 5)
     {
         var today = asOfDate ?? DateTime.UtcNow.Date;
         var expected = record.MatingDate.AddDays(GestationDays);
-        var kiddingWatchStart = record.MatingDate.AddDays(KiddingWatchDays);
+        var kiddingWatchStart = expected.AddDays(-kiddingWatchDaysBefore);
         var daysRemaining = (expected - today).Days;
 
         DateTime? weaningDate = null;
@@ -50,11 +49,11 @@ public class GestationTimerService
     }
 
     public IReadOnlyList<GestationStatus> GetActiveGestations(
-        IEnumerable<MatingRecord> records, DateTime? asOfDate = null)
+        IEnumerable<MatingRecord> records, DateTime? asOfDate = null, int kiddingWatchDaysBefore = 5)
     {
         return records
             .Where(r => r.ActualKiddingDate is null)
-            .Select(r => GetStatus(r, asOfDate))
+            .Select(r => GetStatus(r, asOfDate, kiddingWatchDaysBefore))
             .OrderBy(s => s.DaysRemaining)
             .ToList();
     }

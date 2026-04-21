@@ -5,26 +5,77 @@
     var (icon, label, css) = Sync.State switch
     {
         SyncState.Syncing => ("↑", $"Syncing {Sync.PendingCount} change{(Sync.PendingCount == 1 ? "" : "s")}…", "sync-syncing"),
-        SyncState.Synced  => ("✓", "Synced",                                                                        "sync-synced"),
-        SyncState.Failed  => ("⚠",  Sync.ErrorMessage ?? "Sync failed",                                              "sync-failed"),
-        SyncState.Offline => ("⊘", "Offline",                                                                        "sync-offline"),
-        _                  => ("",   "",                                                                               "sync-idle")
+        SyncState.Synced  => ("✓", "Synced",                                                                       "sync-synced"),
+        SyncState.Failed  => ("⚠",  Sync.ErrorMessage ?? "Sync failed",                                             "sync-failed"),
+        SyncState.Offline => ("⊘", "Offline",                                                                       "sync-offline"),
+        _                  => ("",   "",                                                                              "sync-idle")
     };
+
+    var hasItems = Sync.SyncItems.Count > 0;
 }
 
 @if (Sync.State != SyncState.Idle)
 {
-    <div class="sync-indicator @css" title="@label">
-        <span class="sync-icon">@icon</span>
-        <span class="sync-label">@label</span>
-        @if (Sync.State == SyncState.Failed)
+    <div class="sync-wrapper">
+        <!-- Status chip — click to toggle the detail panel when items exist -->
+        <div class="sync-indicator @css @(hasItems ? "sync-clickable" : "")"
+             title="@label"
+             @onclick="() => { if (hasItems) _panelOpen = !_panelOpen; }">
+            <span class="sync-icon">@icon</span>
+            <span class="sync-label">@label</span>
+            @if (Sync.State == SyncState.Failed && !hasItems)
+            {
+                <button class="sync-retry" @onclick:stopPropagation="true" @onclick="RetryAsync">Retry</button>
+            }
+            @if (hasItems)
+            {
+                <span class="sync-chevron">@(_panelOpen ? "▲" : "▼")</span>
+            }
+        </div>
+
+        <!-- Detail panel -->
+        @if (_panelOpen && hasItems)
         {
-            <button class="sync-retry" @onclick="RetryAsync">Retry</button>
+            <div class="sync-backdrop" @onclick="() => _panelOpen = false"></div>
+            <div class="sync-panel">
+                <div class="sync-panel-header">
+                    <span class="sync-panel-title">Sync Details</span>
+                    <button class="sync-panel-close" @onclick="() => _panelOpen = false">✕</button>
+                </div>
+
+                <div class="sync-panel-list">
+                    @foreach (var item in Sync.SyncItems)
+                    {
+                        <div class="sync-item @GetItemCss(item.State)">
+                            <span class="sync-item-icon">@GetItemIcon(item.State)</span>
+                            <div class="sync-item-body">
+                                <span class="sync-item-name">@item.DisplayName</span>
+                                <span class="sync-item-meta">
+                                    @FormatEntityType(item.EntityType) · @item.Action
+                                </span>
+                                @if (item.State == SyncItemState.Failed && item.Error is not null)
+                                {
+                                    <span class="sync-item-error">@item.Error</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (Sync.State == SyncState.Failed)
+                {
+                    <div class="sync-panel-footer">
+                        <button class="sync-retry-full" @onclick="RetryAsync">↺ Retry Failed</button>
+                    </div>
+                }
+            </div>
         }
     </div>
 }
 
 @code {
+    private bool _panelOpen;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -36,11 +87,42 @@
 
     private void OnSyncChanged() => InvokeAsync(StateHasChanged);
 
-    private async Task RetryAsync() => await Sync.TriggerSyncAsync();
+    private async Task RetryAsync()
+    {
+        _panelOpen = false;
+        await Sync.TriggerSyncAsync();
+    }
 
     public async ValueTask DisposeAsync()
     {
         Sync.OnChanged -= OnSyncChanged;
         await Sync.DisposeAsync();
     }
+
+    private static string GetItemIcon(SyncItemState state) => state switch
+    {
+        SyncItemState.Syncing => "↑",
+        SyncItemState.Synced  => "✓",
+        SyncItemState.Failed  => "✗",
+        _                     => "○"
+    };
+
+    private static string GetItemCss(SyncItemState state) => state switch
+    {
+        SyncItemState.Syncing => "sync-item-syncing",
+        SyncItemState.Synced  => "sync-item-synced",
+        SyncItemState.Failed  => "sync-item-failed",
+        _                     => "sync-item-pending"
+    };
+
+    private static string FormatEntityType(string entityType) => entityType switch
+    {
+        "animals"       => "Animal",
+        "weightRecords" => "Weight",
+        "matingRecords" => "Mating",
+        "heatRecords"   => "Heat",
+        "medicalLogs"   => "Medical",
+        "costEntries"   => "Cost",
+        _               => entityType
+    };
 }

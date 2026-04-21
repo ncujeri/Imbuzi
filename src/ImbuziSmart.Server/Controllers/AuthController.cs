@@ -178,6 +178,69 @@ public class AuthController : ControllerBase
         return Ok(new { userId = user.Id, email = user.Email, role = req.Role });
     }
 
+    // ── GET /api/auth/team ────────────────────────────────────────────────────
+    /// <summary>Returns all active users in the caller's tenant.</summary>
+    [HttpGet("team")]
+    [Authorize(Policy = "OwnerOnly")]
+    public async Task<IActionResult> GetTeam()
+    {
+        var tenantIdClaim = User.FindFirstValue("tenant_id");
+        if (!Guid.TryParse(tenantIdClaim, out var tenantId))
+            return Unauthorized();
+
+        var users = await _users.Users
+            .Where(u => u.TenantId == tenantId && u.IsActive)
+            .OrderBy(u => u.FirstName)
+            .ToListAsync();
+
+        var result = new List<object>();
+        foreach (var u in users)
+        {
+            var roles = await _users.GetRolesAsync(u);
+            result.Add(new
+            {
+                userId    = u.Id,
+                email     = u.Email,
+                fullName  = u.FullName,
+                firstName = u.FirstName,
+                lastName  = u.LastName,
+                role      = roles.FirstOrDefault() ?? AppRoles.Viewer,
+                createdAt = u.CreatedAt
+            });
+        }
+
+        return Ok(result);
+    }
+
+    // ── DELETE /api/auth/team/{userId} ────────────────────────────────────────
+    /// <summary>Deactivates an employee (Manager or Viewer) in the caller's tenant.</summary>
+    [HttpDelete("team/{userId:guid}")]
+    [Authorize(Policy = "OwnerOnly")]
+    public async Task<IActionResult> RemoveEmployee(Guid userId)
+    {
+        var tenantIdClaim = User.FindFirstValue("tenant_id");
+        if (!Guid.TryParse(tenantIdClaim, out var tenantId))
+            return Unauthorized();
+
+        var callerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (callerId == userId.ToString())
+            return BadRequest(new { error = "You cannot remove your own account." });
+
+        var user = await _users.FindByIdAsync(userId.ToString());
+        if (user is null || user.TenantId != tenantId)
+            return NotFound(new { error = "User not found." });
+
+        if (await _users.IsInRoleAsync(user, AppRoles.Owner))
+            return BadRequest(new { error = "Cannot remove another Owner account." });
+
+        user.IsActive = false;
+        var result = await _users.UpdateAsync(user);
+        if (!result.Succeeded)
+            return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+
+        return NoContent();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task EnsureRolesAsync()

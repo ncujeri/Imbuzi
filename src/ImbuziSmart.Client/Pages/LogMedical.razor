@@ -1,4 +1,5 @@
 @page "/medical/new"
+@page "/medical/{Id:guid}/edit"
 @attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @inject NavigationManager Navigation
@@ -6,12 +7,12 @@
 @inject WithdrawalPeriodService WithdrawalSvc
 @inject CurrentUserService CurrentUser
 
-<PageTitle>Medical Log - iMbuzi Smart</PageTitle>
+<PageTitle>@(_isEdit ? "Edit Medical Log" : "Medical Log") - iMbuzi Smart</PageTitle>
 
 <div class="medical-log-page">
     <div class="page-header">
         <button class="back-btn" @onclick="GoBack">&#8592; Back</button>
-        <h2 class="page-title">Medical Log</h2>
+        <h2 class="page-title">@(_isEdit ? "Edit Medical Log" : "Medical Log")</h2>
     </div>
 
     @if (_animals.Count == 0 && _loaded)
@@ -162,7 +163,7 @@
             <div class="form-actions">
                 <button type="button" class="btn-secondary" @onclick="GoBack" disabled="@_isSaving">Cancel</button>
                 <button type="submit" class="btn-primary" disabled="@_isSaving">
-                    @(_isSaving ? "Saving\u2026" : "\uD83D\uDC89 Save Medical Log")
+                    @(_isSaving ? "Saving\u2026" : _isEdit ? "\uD83D\uDC89 Update Medical Log" : "\uD83D\uDC89 Save Medical Log")
                 </button>
             </div>
         </EditForm>
@@ -211,6 +212,8 @@
 
 @code {
 
+    [Parameter] public Guid Id { get; set; }
+
     [Parameter, SupplyParameterFromQuery(Name = "animalId")]
     public string? PreselectedAnimalId { get; set; }
 
@@ -227,6 +230,8 @@
     private List<MedicalLog> _recentRecords = new();
     private bool _isSaving;
     private bool _loaded;
+    private bool _isEdit;
+    private DateTime _editCreatedAt;
     private string _errorMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
@@ -239,7 +244,25 @@
                 .OrderBy(a => a.Name)
                 .ToList();
 
-            if (!string.IsNullOrEmpty(PreselectedAnimalId) &&
+            if (Id != Guid.Empty)
+            {
+                _isEdit = true;
+                var existing = await Db.GetAsync<MedicalLog>("medicalLogs", Id);
+                if (existing is not null)
+                {
+                    _editCreatedAt    = existing.CreatedAt;
+                    _form.AnimalId    = existing.AnimalId.ToString();
+                    _form.TreatmentDate      = existing.TreatmentDate;
+                    _form.Medication  = existing.Medication;
+                    _form.Dosage      = existing.Dosage;
+                    _form.WithdrawalPeriodDays = existing.WithdrawalPeriodDays;
+                    _form.VetName     = existing.VetName;
+                    _form.Notes       = existing.Notes;
+                    _selectedAnimal   = _animals.FirstOrDefault(a => a.Id == existing.AnimalId);
+                    await LoadMedicalHistoryAsync(existing.AnimalId);
+                }
+            }
+            else if (!string.IsNullOrEmpty(PreselectedAnimalId) &&
                 Guid.TryParse(PreselectedAnimalId, out var preId))
             {
                 _selectedAnimal = _animals.FirstOrDefault(a => a.Id == preId);
@@ -294,20 +317,21 @@
             var tenantId = await CurrentUser.GetTenantIdAsync();
             var record = new MedicalLog
             {
-                Id = Guid.NewGuid(),
-                TenantId = tenantId,
-                AnimalId = Guid.Parse(_form.AnimalId),
-                TreatmentDate = _form.TreatmentDate,
-                Medication = _form.Medication.Trim(),
-                Dosage = string.IsNullOrWhiteSpace(_form.Dosage) ? null : _form.Dosage.Trim(),
+                Id        = _isEdit ? Id : Guid.NewGuid(),
+                TenantId  = tenantId,
+                AnimalId  = Guid.Parse(_form.AnimalId),
+                TreatmentDate        = _form.TreatmentDate,
+                Medication           = _form.Medication.Trim(),
+                Dosage               = string.IsNullOrWhiteSpace(_form.Dosage)   ? null : _form.Dosage.Trim(),
                 WithdrawalPeriodDays = _form.WithdrawalPeriodDays,
-                VetName = string.IsNullOrWhiteSpace(_form.VetName) ? null : _form.VetName.Trim(),
-                Notes = string.IsNullOrWhiteSpace(_form.Notes) ? null : _form.Notes.Trim(),
-                CreatedAt = DateTime.UtcNow
+                VetName  = string.IsNullOrWhiteSpace(_form.VetName) ? null : _form.VetName.Trim(),
+                Notes    = string.IsNullOrWhiteSpace(_form.Notes)   ? null : _form.Notes.Trim(),
+                CreatedAt = _isEdit ? _editCreatedAt : DateTime.UtcNow,
+                UpdatedAt = _isEdit ? DateTime.UtcNow : null
             };
 
             await Db.PutAsync("medicalLogs", record);
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("/medical");
         }
         catch (Exception ex)
         {
@@ -316,7 +340,7 @@
         }
     }
 
-    private void GoBack() => Navigation.NavigateTo("/");
+    private void GoBack() => Navigation.NavigateTo("/medical");
 
     // --- Form model ---
 

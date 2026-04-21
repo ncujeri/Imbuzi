@@ -1,0 +1,185 @@
+@page "/pending"
+@attribute [Authorize]
+@inject SyncService Sync
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>Pending Changes - iMbuzi Smart</PageTitle>
+
+<div class="pending-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick='() => Navigation.NavigateTo("/")'>&#8592; Back</button>
+        <h2 class="page-title">Pending Changes</h2>
+        <button class="refresh-btn" @onclick="RefreshAsync" title="Refresh" disabled="@_loading">
+            &#8635;
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="pending-loading">Loading&#8230;</div>
+    }
+    else if (Sync.State == SyncState.Syncing)
+    {
+        <div class="pending-status-banner syncing">
+            <span class="banner-icon">&#8593;</span>
+            <span>Syncing @Sync.PendingCount change@(Sync.PendingCount == 1 ? "" : "s")…</span>
+        </div>
+        <div class="sync-live-list">
+            @foreach (var item in Sync.SyncItems)
+            {
+                <div class="sync-live-item @GetItemCss(item.State)">
+                    <span class="sli-icon">@GetItemIcon(item.State)</span>
+                    <div class="sli-body">
+                        <span class="sli-name">@item.DisplayName</span>
+                        <span class="sli-meta">@FormatEntityType(item.EntityType) · @FormatAction(item.Action)</span>
+                        @if (item.Error is not null)
+                        {
+                            <span class="sli-error">@item.Error</span>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (_items.Count == 0)
+    {
+        <div class="pending-empty">
+            <span class="pending-empty-icon">&#10003;</span>
+            <p>All changes synced</p>
+            <span class="pending-empty-sub">Nothing is waiting to upload.</span>
+        </div>
+    }
+    else
+    {
+        <div class="pending-summary">
+            <span class="pending-count">@_items.Count pending change@(_items.Count == 1 ? "" : "s")</span>
+            @if (Sync.State == SyncState.Offline)
+            {
+                <span class="offline-badge">&#8856; Offline</span>
+            }
+        </div>
+
+        <div class="pending-list">
+            @foreach (var item in _items)
+            {
+                <div class="pending-item">
+                    <span class="pi-entity-icon">@EntityIcon(item.EntityType)</span>
+                    <div class="pi-body">
+                        <span class="pi-name">@item.DisplayName</span>
+                        <span class="pi-meta">@FormatEntityType(item.EntityType)</span>
+                    </div>
+                    <div class="pi-right">
+                        <span class="pi-action @(item.Action == "delete" ? "pi-action-delete" : "pi-action-save")">
+                            @FormatAction(item.Action)
+                        </span>
+                        <span class="pi-time">@FormatTime(item.Timestamp)</span>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="pending-actions">
+            @if (Sync.State == SyncState.Failed)
+            {
+                <div class="failed-banner">
+                    <span>&#9888; @(Sync.ErrorMessage ?? "Last sync failed")</span>
+                </div>
+            }
+            <button class="btn-sync-now" @onclick="SyncNowAsync"
+                    disabled="@(Sync.State == SyncState.Offline || Sync.State == SyncState.Syncing)">
+                &#8593; Sync Now
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private List<SyncItemResult> _items = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Sync.OnChanged += OnSyncChanged;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _items   = await Sync.GetPendingDisplayItemsAsync();
+        _loading = false;
+    }
+
+    private async Task RefreshAsync() => await LoadAsync();
+
+    private async Task SyncNowAsync()
+    {
+        await Sync.TriggerSyncAsync();
+        await LoadAsync();
+    }
+
+    private void OnSyncChanged() => InvokeAsync(async () =>
+    {
+        // Refresh the list after sync completes
+        if (Sync.State is SyncState.Synced or SyncState.Failed or SyncState.Idle)
+            await LoadAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Sync.OnChanged -= OnSyncChanged;
+
+    private static string GetItemIcon(SyncItemState s) => s switch
+    {
+        SyncItemState.Syncing => "↑",
+        SyncItemState.Synced  => "✓",
+        SyncItemState.Failed  => "✗",
+        _                     => "○"
+    };
+
+    private static string GetItemCss(SyncItemState s) => s switch
+    {
+        SyncItemState.Syncing => "sli-syncing",
+        SyncItemState.Synced  => "sli-synced",
+        SyncItemState.Failed  => "sli-failed",
+        _                     => "sli-pending"
+    };
+
+    private static string EntityIcon(string entityType) => entityType switch
+    {
+        "animals"       => "🐐",
+        "weightRecords" => "⚖",
+        "matingRecords" => "🤝",
+        "heatRecords"   => "🩷",
+        "medicalLogs"   => "💊",
+        "costEntries"   => "💰",
+        _               => "📄"
+    };
+
+    private static string FormatEntityType(string entityType) => entityType switch
+    {
+        "animals"       => "Animal",
+        "weightRecords" => "Weight",
+        "matingRecords" => "Mating",
+        "heatRecords"   => "Heat",
+        "medicalLogs"   => "Medical",
+        "costEntries"   => "Cost",
+        _               => entityType
+    };
+
+    private static string FormatAction(string action) => action switch
+    {
+        "delete" => "Delete",
+        _        => "Save"
+    };
+
+    private static string FormatTime(string iso)
+    {
+        if (!DateTime.TryParse(iso, out var dt)) return "";
+        var diff = DateTime.UtcNow - dt.ToUniversalTime();
+        if (diff.TotalMinutes < 1)  return "just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours   < 24) return $"{(int)diff.TotalHours}h ago";
+        return $"{(int)diff.TotalDays}d ago";
+    }
+}

@@ -17,11 +17,11 @@
     <div class="summary-row">
         <div class="summary-card">
             <span class="summary-label">All Time</span>
-            <span class="summary-value">R @_totalAllTime.ToString("N2")</span>
+            <span class="summary-value">@_currencySymbol @_totalAllTime.ToString("N2")</span>
         </div>
         <div class="summary-card">
             <span class="summary-label">This Month</span>
-            <span class="summary-value">R @_totalThisMonth.ToString("N2")</span>
+            <span class="summary-value">@_currencySymbol @_totalThisMonth.ToString("N2")</span>
         </div>
         <div class="summary-card">
             <span class="summary-label">Entries</span>
@@ -44,7 +44,7 @@
                     <div class="breakdown-bar-wrap">
                         <div class="breakdown-bar" style="width:@pct.ToString("0")%"></div>
                     </div>
-                    <span class="breakdown-amount">R @total.ToString("N2")</span>
+                    <span class="breakdown-amount">@_currencySymbol @total.ToString("N2")</span>
                 </div>
             }
         </div>
@@ -100,7 +100,7 @@
                 <div class="month-group">
                     <div class="month-header">
                         <span class="month-label">@group.Label</span>
-                        <span class="month-total">R @group.Total.ToString("N2")</span>
+                        <span class="month-total">@_currencySymbol @group.Total.ToString("N2")</span>
                     </div>
                     @foreach (var entry in group.Entries)
                     {
@@ -121,7 +121,7 @@
                                         <span class="entry-animal entry-farm">&#127978; Farm</span>
                                     }
                                 </div>
-                                <span class="entry-amount">R @entry.Amount.ToString("N2")</span>
+                                <span class="entry-amount">@_currencySymbol @entry.Amount.ToString("N2")</span>
                             </div>
                             @if (!string.IsNullOrEmpty(entry.Description))
                             {
@@ -138,7 +138,7 @@
 
         <div class="ledger-total">
             <span class="ledger-total-label">Filtered total</span>
-            <span class="ledger-total-value">R @_filteredTotal.ToString("N2")</span>
+            <span class="ledger-total-value">@_currencySymbol @_filteredTotal.ToString("N2")</span>
         </div>
     }
 </div>
@@ -151,7 +151,7 @@
             <p class="modal-msg">Delete this cost entry?</p>
             <p class="modal-sub">
                 @LogCost.CategoryEmoji(_deleteTarget.Category) @_deleteTarget.Category
-                &mdash; R @_deleteTarget.Amount.ToString("N2")
+                &mdash; @_currencySymbol @_deleteTarget.Amount.ToString("N2")
                 &mdash; @_deleteTarget.Date.ToString("dd MMM yyyy")
             </p>
             <div class="modal-actions">
@@ -178,11 +178,20 @@
     private string _activeAnimalFilter = string.Empty;
     private bool _loaded;
     private CostEntry? _deleteTarget;
+    private string _currencySymbol = "R";
+
+    private static string ToCurrencySymbol(string code) => code switch
+    {
+        "USD" => "$", "EUR" => "€", "GBP" => "£", _ => "R"
+    };
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            var settings = (await Db.GetAllAsync<FarmSettings>("farmSettings")).FirstOrDefault();
+            if (settings is not null) _currencySymbol = ToCurrencySymbol(settings.Currency);
+
             var allAnimals = await Db.GetAllAsync<Animal>("animals");
             _animals = allAnimals.OrderBy(a => a.Name).ToList();
 

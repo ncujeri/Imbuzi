@@ -1,0 +1,144 @@
+@inject NotificationBellService BellService
+@inject SyncService Sync
+@inject IndexedDbService Db
+@inject NotificationService PushSvc
+@inject NavigationManager Nav
+@implements IDisposable
+
+<AuthorizeView Roles="Owner">
+    <div class="notif-bell">
+        <button class="notif-btn" @onclick="ToggleDropdown" title="Notifications">
+            <span class="notif-icon">🔔</span>
+            @if (BellService.UnreadCount > 0)
+            {
+                <span class="notif-badge">@(BellService.UnreadCount > 9 ? "9+" : BellService.UnreadCount.ToString())</span>
+            }
+        </button>
+
+        @if (_open)
+        {
+            <div class="notif-backdrop" @onclick="CloseDropdown"></div>
+            <div class="notif-dropdown">
+                <div class="notif-header">
+                    <span class="notif-title">Notifications</span>
+                    @if (BellService.UnreadCount > 0)
+                    {
+                        <button class="notif-mark-all" @onclick="MarkAllRead">Mark all read</button>
+                    }
+                </div>
+
+                @if (BellService.Notifications.Count == 0)
+                {
+                    <div class="notif-empty">No new notifications</div>
+                }
+                else
+                {
+                    <div class="notif-list">
+                        @foreach (var n in BellService.Notifications)
+                        {
+                            <div class="notif-item" @onclick="() => DismissAndNavigate(n)">
+                                <div class="notif-item-icon">@NotifIcon(n.Title)</div>
+                                <div class="notif-item-body">
+                                    <span class="notif-item-title">@n.Title</span>
+                                    <span class="notif-item-msg">@n.Message</span>
+                                    <span class="notif-item-time">@FormatTime(n.CreatedAt)</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</AuthorizeView>
+
+@code {
+    private bool _open;
+    private bool _pushEnabled;
+    private int  _prevServerCount = -1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        BellService.OnChange += OnBellChanged;
+        Sync.OnChanged       += OnSyncChanged;
+
+        try
+        {
+            var settings = (await Db.GetAllAsync<FarmSettings>("farmSettings")).FirstOrDefault();
+            _pushEnabled = settings?.EnablePushNotifications ?? false;
+        }
+        catch { }
+
+        await BellService.RefreshAsync();
+        _prevServerCount = BellService.ServerCount;
+    }
+
+    private void OnSyncChanged() => InvokeAsync(BellService.RefreshAsync);
+
+    private void OnBellChanged()
+    {
+        if (_pushEnabled && _prevServerCount >= 0 && BellService.ServerCount > _prevServerCount)
+        {
+            var newNotifs = BellService.ServerNotifications
+                .Take(BellService.ServerCount - _prevServerCount)
+                .ToList();
+
+            InvokeAsync(async () =>
+            {
+                try
+                {
+                    if (!await PushSvc.IsPermissionGrantedAsync())
+                        await PushSvc.RequestPermissionAsync();
+
+                    foreach (var n in newNotifs)
+                        await PushSvc.SendAlertAsync(n.Title, n.Message);
+                }
+                catch { }
+            });
+        }
+
+        _prevServerCount = BellService.ServerCount;
+        StateHasChanged();
+    }
+
+    private void ToggleDropdown() => _open = !_open;
+    private void CloseDropdown()  => _open = false;
+
+    private async Task MarkAllRead()
+    {
+        await BellService.MarkAllReadAsync();
+        _open = false;
+    }
+
+    private async Task DismissAndNavigate(ImbuziSmart.Shared.Entities.AppNotification n)
+    {
+        _open = false;
+        await BellService.MarkReadAsync(n.Id);
+        if (n.EntityId.HasValue)
+            Nav.NavigateTo($"passport?id={n.EntityId}");
+    }
+
+    private static string NotifIcon(string title) =>
+        title.Contains("Sold")        ? "💰" :
+        title.Contains("Kidding")     ? "🐐" :
+        title.Contains("Weaning")     ? "🍼" :
+        title.Contains("Withdrawal")  ? "💊" :
+        title.Contains("Heat")        ? "🔥" :
+        "🔔";
+
+    private static string FormatTime(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        var diff  = DateTime.Now - local;
+        return diff.TotalMinutes < 1   ? "just now"
+             : diff.TotalHours   < 1   ? $"{(int)diff.TotalMinutes}m ago"
+             : diff.TotalDays    < 1   ? $"{(int)diff.TotalHours}h ago"
+             : local.ToString("d MMM");
+    }
+
+    public void Dispose()
+    {
+        BellService.OnChange -= OnBellChanged;
+        Sync.OnChanged       -= OnSyncChanged;
+    }
+}

@@ -1,4 +1,5 @@
 @page "/weight/new"
+@page "/weight/{Id:guid}/edit"
 @attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @inject NavigationManager Navigation
@@ -6,12 +7,12 @@
 @inject WeightCalculatorService WeightCalc
 @inject CurrentUserService CurrentUser
 
-<PageTitle>Weigh Animal - iMbuzi Smart</PageTitle>
+<PageTitle>@(_isEdit ? "Edit Weight Record" : "Weigh Animal") - iMbuzi Smart</PageTitle>
 
 <div class="weigh-page">
     <div class="page-header">
         <button class="back-btn" @onclick="GoBack">&#8592; Back</button>
-        <h2 class="page-title">Weigh Animal</h2>
+        <h2 class="page-title">@(_isEdit ? "Edit Weight Record" : "Weigh Animal")</h2>
     </div>
 
     @if (_animals.Count == 0 && _loaded)
@@ -190,7 +191,7 @@
             <div class="form-actions">
                 <button type="button" class="btn-secondary" @onclick="GoBack" disabled="@_isSaving">Cancel</button>
                 <button type="submit" class="btn-primary" disabled="@_isSaving">
-                    @(_isSaving ? "Saving\u2026" : "\u2696\uFE0F Save Weight")
+                    @(_isSaving ? "Saving\u2026" : _isEdit ? "\u2696\uFE0F Update Weight" : "\u2696\uFE0F Save Weight")
                 </button>
             </div>
         </EditForm>
@@ -212,12 +213,12 @@
                             @if (diff.HasValue)
                             {
                                 <span class="weight-delta @(diff > 0 ? "delta-up" : diff < 0 ? "delta-down" : "delta-flat")">
-                                    @(diff > 0 ? "&#9650;" : diff < 0 ? "&#9660;" : "&#9644;")
+                                    @(diff > 0 ? "▲" : diff < 0 ? "▼" : "▬")
                                     @(Math.Abs(diff.Value).ToString("0.0")) kg
                                 </span>
                             }
                         </div>
-                        <div class="weight-method">@(rec.Method == "HeartGirth" ? "&#128207; Heart Girth" : "&#9878; Scale")</div>
+                        <div class="weight-method">@(rec.Method == "HeartGirth" ? "📏 Heart Girth" : "⚖️ Scale")</div>
                         @if (!string.IsNullOrWhiteSpace(rec.Notes))
                         {
                             <p class="history-signs">@rec.Notes</p>
@@ -230,6 +231,8 @@
 </div>
 
 @code {
+
+    [Parameter] public Guid Id { get; set; }
 
     [Parameter, SupplyParameterFromQuery(Name = "animalId")]
     public string? PreselectedAnimalId { get; set; }
@@ -244,6 +247,8 @@
     private string? _blError;
     private bool _isSaving;
     private bool _loaded;
+    private bool _isEdit;
+    private DateTime _editCreatedAt;
     private string _errorMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
@@ -256,7 +261,30 @@
                 .OrderBy(a => a.Name)
                 .ToList();
 
-            if (!string.IsNullOrEmpty(PreselectedAnimalId) &&
+            if (Id != Guid.Empty)
+            {
+                _isEdit = true;
+                var existing = await Db.GetAsync<WeightRecord>("weightRecords", Id);
+                if (existing is not null)
+                {
+                    _editCreatedAt       = existing.CreatedAt;
+                    _form.AnimalId       = existing.AnimalId.ToString();
+                    _form.WeighedAt      = existing.WeighedAt;
+                    _form.Method         = existing.Method;
+                    _form.Kilograms      = existing.Kilograms;
+                    _form.HeartGirthCm   = existing.HeartGirthCm;
+                    _form.BodyLengthCm   = existing.BodyLengthCm;
+                    _form.Notes          = existing.Notes;
+                    _selectedAnimal      = _animals.FirstOrDefault(a => a.Id == existing.AnimalId);
+                    if (_form.Method == "HeartGirth" && existing.HeartGirthCm is > 0 && existing.BodyLengthCm is > 0)
+                    {
+                        try { _estimatedKg = WeightCalc.CalculateFromHeartGirth(existing.HeartGirthCm.Value, existing.BodyLengthCm.Value).Kilograms; }
+                        catch { }
+                    }
+                    await LoadWeightHistoryAsync(existing.AnimalId);
+                }
+            }
+            else if (!string.IsNullOrEmpty(PreselectedAnimalId) &&
                 Guid.TryParse(PreselectedAnimalId, out var preId))
             {
                 _selectedAnimal = _animals.FirstOrDefault(a => a.Id == preId);
@@ -388,20 +416,21 @@
 
             var record = new WeightRecord
             {
-                Id = Guid.NewGuid(),
-                TenantId = tenantId,
-                AnimalId = Guid.Parse(_form.AnimalId),
-                WeighedAt = _form.WeighedAt,
-                Kilograms = kilograms,
-                Method = _form.Method,
+                Id           = _isEdit ? Id : Guid.NewGuid(),
+                TenantId     = tenantId,
+                AnimalId     = Guid.Parse(_form.AnimalId),
+                WeighedAt    = _form.WeighedAt,
+                Kilograms    = kilograms,
+                Method       = _form.Method,
                 HeartGirthCm = _form.HeartGirthCm,
                 BodyLengthCm = _form.BodyLengthCm,
-                Notes = string.IsNullOrWhiteSpace(_form.Notes) ? null : _form.Notes.Trim(),
-                CreatedAt = DateTime.UtcNow
+                Notes        = string.IsNullOrWhiteSpace(_form.Notes) ? null : _form.Notes.Trim(),
+                CreatedAt    = _isEdit ? _editCreatedAt : DateTime.UtcNow,
+                UpdatedAt    = _isEdit ? DateTime.UtcNow : null
             };
 
             await Db.PutAsync("weightRecords", record);
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("/weight");
         }
         catch (Exception ex)
         {
@@ -410,7 +439,7 @@
         }
     }
 
-    private void GoBack() => Navigation.NavigateTo("/");
+    private void GoBack() => Navigation.NavigateTo("/weight");
 
     // --- Form model ---
 

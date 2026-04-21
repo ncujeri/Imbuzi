@@ -85,21 +85,35 @@
                         </div>
                         <div class="animal-row-chips">
                             <span class="chip @(a.Sex == Sex.Female ? "chip-female" : "chip-male")">
-                                @(a.Sex == Sex.Female ? "&#9792; Female" : "&#9794; Male")
+                                @(a.Sex == Sex.Female ? "♀ Female" : "♂ Male")
                             </span>
                             <span class="chip @StatusChipClass(a.Status)">@a.Status</span>
                         </div>
                     </div>
                     <div class="animal-row-actions" @onclick:stopPropagation="true">
-                        @if (a.Status == AnimalStatus.Sold)
+                        @if (_confirmDeleteId == a.Id)
                         {
-                            <button class="pnl-btn" @onclick="() => ViewSaleReport(a.Id)" title="Sale P&L">
-                                &#128200;
+                            <span class="delete-confirm-label">Delete?</span>
+                            <button class="cancel-btn" @onclick="CancelDelete">Cancel</button>
+                            <button class="confirm-delete-btn" @onclick="() => ConfirmDeleteAsync(a.Id)">
+                                &#10003; Yes
                             </button>
                         }
-                        <button class="edit-btn" @onclick="() => EditAnimal(a.Id)" title="Edit">
-                            &#9998;
-                        </button>
+                        else
+                        {
+                            @if (a.Status == AnimalStatus.Sold)
+                            {
+                                <button class="pnl-btn" @onclick="() => ViewSaleReport(a.Id)" title="Sale P&L">
+                                    &#128200;
+                                </button>
+                            }
+                            <button class="edit-btn" @onclick="() => EditAnimal(a.Id)" title="Edit">
+                                &#9998;
+                            </button>
+                            <button class="delete-btn" @onclick="() => StartDeleteConfirm(a.Id)" title="Delete animal">
+                                &#128465;
+                            </button>
+                        }
                     </div>
                 </div>
             }
@@ -121,6 +135,7 @@
     private bool _loaded;
     private string _search = string.Empty;
     private string _statusFilter = string.Empty;
+    private Guid? _confirmDeleteId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -178,4 +193,15 @@
     private void ViewPassport(Guid id)   => Navigation.NavigateTo($"/passport/{id}");
     private void EditAnimal(Guid id)     => Navigation.NavigateTo($"/animals/{id}/edit");
     private void ViewSaleReport(Guid id) => Navigation.NavigateTo($"/animals/{id}/sale-report");
+
+    private void StartDeleteConfirm(Guid id) => _confirmDeleteId = id;
+    private void CancelDelete()              => _confirmDeleteId = null;
+
+    private async Task ConfirmDeleteAsync(Guid id)
+    {
+        _confirmDeleteId = null;
+        await Db.DeleteAsync("animals", id);
+        _animals.RemoveAll(a => a.Id == id);
+        ApplyFilter();
+    }
 }

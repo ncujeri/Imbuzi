@@ -3,6 +3,7 @@
 @using System.ComponentModel.DataAnnotations
 @using ImbuziSmart.Shared.Auth
 @inject AuthService Auth
+@inject SyncService Sync
 @inject NavigationManager Navigation
 
 <PageTitle>Sign In - iMbuzi Smart</PageTitle>
@@ -71,6 +72,9 @@
 
         if (success)
         {
+            // Pull real data from the server before navigating so the user
+            // immediately sees their own animals rather than an empty list.
+            await Sync.PullFromServerAsync();
             Navigation.NavigateTo(ReturnUrl ?? "/", forceLoad: false);
         }
         else

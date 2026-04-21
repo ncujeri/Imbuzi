@@ -1,0 +1,195 @@
+@page "/team"
+@attribute [Authorize(Roles = "Owner")]
+@inject AuthService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Team - iMbuzi Smart</PageTitle>
+
+<div class="team-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick='() => Navigation.NavigateTo("/")'>&#8592; Back</button>
+        <h2 class="page-title">Team</h2>
+        <button class="add-toggle-btn" @onclick="ToggleAddForm" title="Add employee">
+            @(_showAddForm ? "✕" : "➕")
+        </button>
+    </div>
+
+    @if (_pageError is not null)
+    {
+        <div class="team-error-banner">&#9888;&#xFE0F; @_pageError</div>
+    }
+
+    <!-- ── Add employee form ── -->
+    @if (_showAddForm)
+    {
+        <div class="add-employee-card">
+            <h3 class="add-form-title">Add Employee</h3>
+            <div class="form-row two-col">
+                <div class="form-field">
+                    <label>First Name</label>
+                    <input type="text" @bind="_form.FirstName" placeholder="First name" />
+                </div>
+                <div class="form-field">
+                    <label>Last Name</label>
+                    <input type="text" @bind="_form.LastName" placeholder="Last name" />
+                </div>
+            </div>
+            <div class="form-field">
+                <label>Email</label>
+                <input type="email" @bind="_form.Email" placeholder="employee@example.com" />
+            </div>
+            <div class="form-field">
+                <label>Temporary Password</label>
+                <input type="password" @bind="_form.Password" placeholder="Min 6 characters" />
+            </div>
+            <div class="form-field">
+                <label>Role</label>
+                <select @bind="_form.Role">
+                    <option value="Manager">Manager — can add &amp; edit records</option>
+                    <option value="Viewer">Viewer — read-only access</option>
+                </select>
+            </div>
+            @if (_formError is not null)
+            {
+                <div class="form-error">@_formError</div>
+            }
+            <button class="btn-invite" @onclick="InviteAsync" disabled="@_saving">
+                @(_saving ? "Adding…" : "Add Employee")
+            </button>
+        </div>
+    }
+
+    <!-- ── Team list ── -->
+    @if (_loading)
+    {
+        <div class="team-loading">Loading team&#8230;</div>
+    }
+    else if (_members.Count == 0)
+    {
+        <div class="team-empty">
+            <span class="team-empty-icon">&#128101;&#xFE0F;</span>
+            <p>No employees yet</p>
+            <span class="team-empty-sub">Tap + above to add your first team member.</span>
+        </div>
+    }
+    else
+    {
+        <div class="team-list">
+            @foreach (var m in _members)
+            {
+                <div class="team-item">
+                    <div class="member-avatar">@Initials(m)</div>
+                    <div class="member-body">
+                        <span class="member-name">@m.FullName</span>
+                        <span class="member-email">@m.Email</span>
+                    </div>
+                    <div class="member-right">
+                        <span class="role-badge @RoleCss(m.Role)">@m.Role</span>
+                        @if (m.Role != "Owner")
+                        {
+                            @if (_confirmRemoveId == m.UserId)
+                            {
+                                <div class="remove-confirm">
+                                    <span class="remove-label">Remove?</span>
+                                    <button class="cancel-btn" @onclick="CancelRemove">Cancel</button>
+                                    <button class="confirm-remove-btn" @onclick="() => ConfirmRemoveAsync(m.UserId)">Yes</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <button class="remove-btn" @onclick="() => StartRemove(m.UserId)" title="Remove @m.FirstName">
+                                    &#128465;&#xFE0F;
+                                </button>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<TeamMemberDto> _members       = new();
+    private bool                _loading       = true;
+    private bool                _showAddForm   = false;
+    private bool                _saving        = false;
+    private string?             _pageError;
+    private string?             _formError;
+    private Guid?               _confirmRemoveId;
+
+    private InviteUserRequest _form = new();
+
+    protected override async Task OnInitializedAsync() => await LoadTeamAsync();
+
+    private async Task LoadTeamAsync()
+    {
+        _loading   = true;
+        _pageError = null;
+        var (members, error) = await Auth.GetTeamAsync();
+        if (error is not null)
+            _pageError = error;
+        else
+            _members = members ?? new();
+        _loading = false;
+    }
+
+    private void ToggleAddForm()
+    {
+        _showAddForm = !_showAddForm;
+        _formError   = null;
+        if (_showAddForm) _form = new InviteUserRequest { Role = "Viewer" };
+    }
+
+    private async Task InviteAsync()
+    {
+        _formError = null;
+
+        if (string.IsNullOrWhiteSpace(_form.FirstName)) { _formError = "First name is required."; return; }
+        if (string.IsNullOrWhiteSpace(_form.LastName))  { _formError = "Last name is required.";  return; }
+        if (string.IsNullOrWhiteSpace(_form.Email))     { _formError = "Email is required.";      return; }
+        if (_form.Password.Length < 6)                  { _formError = "Password must be at least 6 characters."; return; }
+
+        _saving = true;
+        var (success, error) = await Auth.InviteEmployeeAsync(_form);
+        _saving = false;
+
+        if (!success)
+        {
+            _formError = error;
+            return;
+        }
+
+        _showAddForm = false;
+        _form        = new InviteUserRequest { Role = "Viewer" };
+        await LoadTeamAsync();
+    }
+
+    private void StartRemove(Guid id)      => _confirmRemoveId = id;
+    private void CancelRemove()            => _confirmRemoveId = null;
+
+    private async Task ConfirmRemoveAsync(Guid id)
+    {
+        _confirmRemoveId = null;
+        _pageError       = null;
+        var (success, error) = await Auth.RemoveEmployeeAsync(id);
+        if (!success)
+            _pageError = error;
+        else
+            _members.RemoveAll(m => m.UserId == id);
+    }
+
+    private static string Initials(TeamMemberDto m)
+    {
+        var fi = m.FirstName.Length > 0 ? m.FirstName[0].ToString().ToUpper() : "";
+        var li = m.LastName.Length  > 0 ? m.LastName[0].ToString().ToUpper()  : "";
+        return (fi + li).Length > 0 ? fi + li : "?";
+    }
+
+    private static string RoleCss(string role) => role switch
+    {
+        "Owner"   => "role-owner",
+        "Manager" => "role-manager",
+        _         => "role-viewer"
+    };
+}

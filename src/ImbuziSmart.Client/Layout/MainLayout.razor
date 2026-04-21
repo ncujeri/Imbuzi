@@ -1,5 +1,9 @@
 @inherits LayoutComponentBase
 @inject ThemeService Theme
+@inject AuthenticationStateProvider AuthStateProvider
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject IndexedDbService Db
 @implements IDisposable
 
 <PwaUpdateBanner />
@@ -16,10 +20,44 @@
                 </div>
             </a>
             <SyncIndicator />
-            <button class="theme-toggle" @onclick="ToggleTheme" title="@(Theme.IsDark ? "Switch to light mode" : "Switch to dark mode")">
-                @(Theme.IsDark ? "☀️" : "🌙")
-            </button>
-            <a href="settings" class="settings-link" title="Settings">&#9881;</a>
+            <NotificationBell />
+
+            <!-- Profile avatar -->
+            <div class="profile-menu">
+                <button class="profile-avatar" @onclick="ToggleProfile" title="Profile">
+                    @_initials
+                </button>
+                @if (_profileOpen)
+                {
+                    <div class="profile-backdrop" @onclick="CloseProfile"></div>
+                    <div class="profile-dropdown">
+                        <div class="profile-info">
+                            <div class="profile-avatar-lg">@_initials</div>
+                            <div class="profile-details">
+                                <span class="profile-fullname">@_fullName</span>
+                                <span class="profile-farmname">@_farmName</span>
+                            </div>
+                        </div>
+                        <div class="profile-divider profile-mobile-nav-only"></div>
+                        <a href="pending" class="profile-nav-item profile-mobile-nav-only" @onclick="CloseProfile">
+                            <span>&#8593;</span> Pending Sync
+                        </a>
+                        <AuthorizeView Roles="Owner">
+                            <a href="team" class="profile-nav-item profile-mobile-nav-only" @onclick="CloseProfile">
+                                <span>&#128101;</span> Team
+                            </a>
+                        </AuthorizeView>
+                        <div class="profile-divider"></div>
+                        <button class="theme-toggle profile-theme-toggle" @onclick="ToggleTheme">
+                            @(Theme.IsDark ? "☀️ Light Mode" : "🌙 Dark Mode")
+                        </button>
+                        <div class="profile-divider"></div>
+                        <button class="profile-logout" @onclick="LogoutAsync">
+                            <span>&#128682;</span> Logout
+                        </button>
+                    </div>
+                }
+            </div>
         </div>
     </header>
 
@@ -38,29 +76,42 @@
                 <span class="side-nav-icon">&#128203;</span>
                 <span class="side-nav-label">Passport</span>
             </NavLink>
-            <NavLink href="weight/new" class="side-nav-item">
+            <NavLink href="weight" class="side-nav-item">
                 <span class="side-nav-icon">&#9878;&#xFE0F;</span>
-                <span class="side-nav-label">Weigh</span>
+                <span class="side-nav-label">Weight</span>
             </NavLink>
-            <NavLink href="medical/new" class="side-nav-item">
+            <NavLink href="medical" class="side-nav-item">
                 <span class="side-nav-icon">&#128138;</span>
-                <span class="side-nav-label">Medical Log</span>
+                <span class="side-nav-label">Medical</span>
             </NavLink>
-            <NavLink href="mating/new" class="side-nav-item">
+            <NavLink href="mating" class="side-nav-item">
                 <span class="side-nav-icon">&#129309;</span>
-                <span class="side-nav-label">Record Mating</span>
+                <span class="side-nav-label">Mating</span>
             </NavLink>
-            <NavLink href="heat/new" class="side-nav-item">
-                <span class="side-nav-icon">&#128149;</span>
-                <span class="side-nav-label">Log Heat</span>
-            </NavLink>
+            @if (_heatTrackingEnabled)
+            {
+                <NavLink href="heat/new" class="side-nav-item">
+                    <span class="side-nav-icon">&#128149;</span>
+                    <span class="side-nav-label">Log Heat</span>
+                </NavLink>
+            }
             <NavLink href="cost/ledger" class="side-nav-item">
                 <span class="side-nav-icon">&#128176;</span>
                 <span class="side-nav-label">Ledger</span>
             </NavLink>
+            <NavLink href="pending" class="side-nav-item">
+                <span class="side-nav-icon">&#8593;</span>
+                <span class="side-nav-label">Pending</span>
+            </NavLink>
 
             <div class="side-nav-divider"></div>
 
+            <AuthorizeView Roles="Owner">
+                <NavLink href="team" class="side-nav-item">
+                    <span class="side-nav-icon">&#128101;&#xFE0F;</span>
+                    <span class="side-nav-label">Team</span>
+                </NavLink>
+            </AuthorizeView>
             <NavLink href="settings" class="side-nav-item">
                 <span class="side-nav-icon">&#9881;</span>
                 <span class="side-nav-label">Settings</span>
@@ -98,13 +149,59 @@
 </div>
 
 @code {
+    private bool   _profileOpen;
+    private string _initials = "?";
+    private string _fullName = "";
+    private string _farmName = "";
+    private bool   _heatTrackingEnabled = true;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             Theme.OnChange += StateHasChanged;
             await Theme.InitAsync();
+            await LoadProfileAsync();
+            await LoadSettingsAsync();
+            StateHasChanged();
         }
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        try
+        {
+            var all = await Db.GetAllAsync<FarmSettings>("farmSettings");
+            var s = all.FirstOrDefault();
+            if (s is not null) _heatTrackingEnabled = s.EnableHeatTracking;
+        }
+        catch { }
+    }
+
+    private async Task LoadProfileAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user  = state.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var first  = user.FindFirst("first_name")?.Value ?? "";
+            var last   = user.FindFirst("last_name")?.Value  ?? "";
+            _fullName  = $"{first} {last}".Trim();
+            _farmName  = user.FindFirst("tenant_name")?.Value ?? "";
+            var fi     = first.Length > 0 ? first[0].ToString().ToUpper() : "";
+            var li     = last.Length  > 0 ? last[0].ToString().ToUpper()  : "";
+            _initials  = (fi + li).Length > 0 ? fi + li : "?";
+        }
+    }
+
+    private void ToggleProfile() => _profileOpen = !_profileOpen;
+    private void CloseProfile()  => _profileOpen = false;
+
+    private async Task LogoutAsync()
+    {
+        _profileOpen = false;
+        await Auth.LogoutAsync();
+        Nav.NavigateTo("/login");
     }
 
     private async Task ToggleTheme() => await Theme.ToggleAsync();

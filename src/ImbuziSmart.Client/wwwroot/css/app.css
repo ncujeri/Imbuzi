@@ -175,19 +175,6 @@ a:hover { text-decoration: underline; }
     opacity: 0.85;
 }
 
-.settings-link {
-    font-size: 1.4rem;
-    color: var(--text-secondary);
-    text-decoration: none;
-    padding: 0.3rem;
-    border-radius: 8px;
-    transition: color 0.2s, background 0.2s;
-}
-.settings-link:hover {
-    color: var(--green-bright);
-    background: rgba(46, 204, 113, 0.1);
-    text-decoration: none;
-}
 
 /* ============================================
    Bottom navigation

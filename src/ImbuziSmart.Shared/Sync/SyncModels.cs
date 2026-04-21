@@ -55,3 +55,16 @@ public class SyncQueueEntry
 
     public string Timestamp { get; set; } = "";
 }
+
+// ── Pull response (server → client) ──────────────────────────────────────────
+
+public class SyncPullResponse
+{
+    public bool Success { get; set; } = true;
+    public List<ImbuziSmart.Shared.Entities.Animal>       Animals       { get; set; } = new();
+    public List<ImbuziSmart.Shared.Entities.WeightRecord> WeightRecords { get; set; } = new();
+    public List<ImbuziSmart.Shared.Entities.MatingRecord> MatingRecords { get; set; } = new();
+    public List<ImbuziSmart.Shared.Entities.HeatRecord>   HeatRecords   { get; set; } = new();
+    public List<ImbuziSmart.Shared.Entities.MedicalLog>   MedicalLogs   { get; set; } = new();
+    public List<ImbuziSmart.Shared.Entities.CostEntry>    CostEntries   { get; set; } = new();
+}

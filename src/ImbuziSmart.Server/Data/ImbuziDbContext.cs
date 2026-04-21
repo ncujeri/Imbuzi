@@ -7,7 +7,8 @@ namespace ImbuziSmart.Server.Data;
 
 public class ImbuziDbContext : IdentityDbContext<AppUser, AppRole, Guid>
 {
-    private readonly Guid _tenantId;
+    private readonly Guid   _tenantId;
+    private readonly string _currentUser;
 
     // ── Livestock tables ───────────────────────────────────────────────────────
     public DbSet<Animal>       Animals       => Set<Animal>();
@@ -21,15 +22,24 @@ public class ImbuziDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // ── Tenant registry ────────────────────────────────────────────────────────
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
+    // ── Notifications ──────────────────────────────────────────────────────────
+    public DbSet<AppNotification> Notifications => Set<AppNotification>();
+
     public ImbuziDbContext(
         DbContextOptions<ImbuziDbContext> options,
         IHttpContextAccessor httpContextAccessor)
         : base(options)
     {
-        var tenantClaim = httpContextAccessor.HttpContext?.User?.FindFirst("tenant_id");
+        var user      = httpContextAccessor.HttpContext?.User;
+        var tenantClaim = user?.FindFirst("tenant_id");
         _tenantId = tenantClaim is not null && Guid.TryParse(tenantClaim.Value, out var tid)
             ? tid
             : Guid.Empty;
+
+        // Full name from JWT — falls back to email, then "System"
+        _currentUser = user?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+            ?? user?.FindFirst("email")?.Value
+            ?? "System";
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -65,6 +75,7 @@ public class ImbuziDbContext : IdentityDbContext<AppUser, AppRole, Guid>
         modelBuilder.Entity<MedicalLog>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<CostEntry>().HasQueryFilter(e => e.TenantId == _tenantId);
         modelBuilder.Entity<FarmSettings>().HasQueryFilter(e => e.TenantId == _tenantId);
+        modelBuilder.Entity<AppNotification>().HasQueryFilter(n => n.TenantId == _tenantId);
 
         // ── WeightRecord ──────────────────────────────────────────────────────
         modelBuilder.Entity<WeightRecord>(entity =>
@@ -119,13 +130,19 @@ public class ImbuziDbContext : IdentityDbContext<AppUser, AppRole, Guid>
             entity.Property(f => f.Currency).HasMaxLength(3).HasDefaultValue("ZAR");
         });
 
-        // ── Seed demo data ────────────────────────────────────────────────────
-        modelBuilder.Entity<Animal>().HasData(SeedData.GetAnimals());
-        modelBuilder.Entity<MatingRecord>().HasData(SeedData.GetMatingRecords());
-        modelBuilder.Entity<HeatRecord>().HasData(SeedData.GetHeatRecords());
-        modelBuilder.Entity<MedicalLog>().HasData(SeedData.GetMedicalLogs());
-        modelBuilder.Entity<CostEntry>().HasData(SeedData.GetCostEntries());
-        modelBuilder.Entity<FarmSettings>().HasData(SeedData.GetFarmSettings());
+        // ── AppNotification ────────────────────────────────────────────────────
+        modelBuilder.Entity<AppNotification>(entity =>
+        {
+            entity.HasKey(n => n.Id);
+            entity.Property(n => n.Title).HasMaxLength(200).IsRequired();
+            entity.Property(n => n.Message).HasMaxLength(1000);
+            entity.Property(n => n.EntityType).HasMaxLength(50);
+            entity.Property(n => n.CreatedBy).HasMaxLength(256);
+            entity.HasIndex(n => new { n.TenantId, n.IsRead, n.CreatedAt });
+        });
+
+        // Demo farm data is seeded at startup by DatabaseSeeder (admin tenant only).
+        // No HasData here — seeding is tenant-scoped to admin@imbuzi.app.
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -134,13 +151,17 @@ public class ImbuziDbContext : IdentityDbContext<AppUser, AppRole, Guid>
         {
             if (entry.State == EntityState.Added)
             {
-                entry.Entity.CreatedAt = DateTime.UtcNow;
+                entry.Entity.CreatedAt  = DateTime.UtcNow;
+                entry.Entity.CreatedBy  = _currentUser;
                 if (entry.Entity.TenantId == Guid.Empty)
                     entry.Entity.TenantId = _tenantId;
             }
             else if (entry.State == EntityState.Modified)
             {
-                entry.Entity.UpdatedAt = DateTime.UtcNow;
+                entry.Entity.UpdatedAt        = DateTime.UtcNow;
+                entry.Entity.LastModifiedBy   = _currentUser;
+                // Never let a client push overwrite the original creator
+                entry.Property(nameof(BaseEntity.CreatedBy)).IsModified = false;
             }
         }
 

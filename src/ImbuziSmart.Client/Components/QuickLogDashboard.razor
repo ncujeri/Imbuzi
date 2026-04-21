@@ -1,5 +1,8 @@
 @inject NavigationManager Navigation
 @inject GestationTimerService GestationTimer
+@inject HeatCycleService HeatSvc
+@inject WithdrawalPeriodService WithdrawalSvc
+@inject NotificationBellService BellService
 @inject IndexedDbService Db
 
 <div class="quick-log-dashboard">
@@ -30,11 +33,14 @@
             Color="#9b59b6"
             OnClick="@(() => NavigateTo("mating/new"))" />
 
-        <QuickLogButton
-            Icon="🔥"
-            Label="Log Heat"
-            Color="#e91e8c"
-            OnClick="@(() => NavigateTo("heat/new"))" />
+        @if (_heatTrackingEnabled)
+        {
+            <QuickLogButton
+                Icon="🔥"
+                Label="Log Heat"
+                Color="#e91e8c"
+                OnClick="@(() => NavigateTo("heat/new"))" />
+        }
 
         <QuickLogButton
             Icon="💰"
@@ -55,9 +61,10 @@
             <h3 class="alerts-title">⚠️ Kidding Watch</h3>
             @foreach (var alert in _kiddingWatchAlerts)
             {
+                var name = _animalMap.GetValueOrDefault(alert.DoeId)?.Name ?? "Unknown";
                 <div class="alert-card kidding-watch">
-                    <span class="alert-animal">Doe @alert.DoeId.ToString()[..8]</span>
-                    <span class="alert-detail">@alert.DaysRemaining days remaining</span>
+                    <span class="alert-animal">@name</span>
+                    <span class="alert-detail">@alert.DaysRemaining day@(alert.DaysRemaining == 1 ? "" : "s") remaining</span>
                 </div>
             }
         </div>
@@ -69,9 +76,10 @@
             <h3 class="alerts-title">🍼 Weaning Due</h3>
             @foreach (var alert in _weaningAlerts)
             {
+                var name = _animalMap.GetValueOrDefault(alert.DoeId)?.Name ?? "Unknown";
                 <div class="alert-card weaning">
-                    <span class="alert-animal">Doe @alert.DoeId.ToString()[..8]</span>
-                    <span class="alert-detail">Weaning due @alert.WeaningDate?.ToShortDateString()</span>
+                    <span class="alert-animal">@name</span>
+                    <span class="alert-detail">Weaning due @alert.WeaningDate?.ToString("dd MMM")</span>
                 </div>
             }
         </div>
@@ -85,7 +93,9 @@
 @code {
     private List<GestationTimerService.GestationStatus> _kiddingWatchAlerts = new();
     private List<GestationTimerService.GestationStatus> _weaningAlerts = new();
+    private Dictionary<Guid, Animal> _animalMap = new();
     private bool _isOnline;
+    private bool _heatTrackingEnabled = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -94,29 +104,116 @@
             _isOnline = await Db.IsOnlineAsync();
             await LoadAlertsAsync();
         }
-        catch
-        {
-            // IndexedDB may not be initialized on first load
-        }
+        catch { }
     }
 
     private async Task LoadAlertsAsync()
     {
         try
         {
+            var settings = (await Db.GetAllAsync<FarmSettings>("farmSettings")).FirstOrDefault() ?? new FarmSettings();
+            _heatTrackingEnabled = settings.EnableHeatTracking;
+
+            var animals      = await Db.GetAllAsync<Animal>("animals");
+            _animalMap       = animals.ToDictionary(a => a.Id);
+
             var matingRecords = await Db.GetAllAsync<MatingRecord>("matingRecords");
+            var activeGestations = GestationTimer.GetActiveGestations(matingRecords, kiddingWatchDaysBefore: settings.KiddingWatchDaysBefore);
 
-            var activeGestations = GestationTimer.GetActiveGestations(matingRecords);
-            _kiddingWatchAlerts = activeGestations
-                .Where(s => s.IsOnKiddingWatch)
-                .ToList();
+            _kiddingWatchAlerts = activeGestations.Where(s => s.IsOnKiddingWatch).ToList();
+            _weaningAlerts      = GestationTimer.GetWeaningAlerts(matingRecords).ToList();
 
-            _weaningAlerts = GestationTimer.GetWeaningAlerts(matingRecords).ToList();
+            await GenerateLocalAlertsAsync(settings, matingRecords, animals);
         }
-        catch
+        catch { }
+    }
+
+    private async Task GenerateLocalAlertsAsync(FarmSettings settings, IList<MatingRecord> matingRecords, IList<Animal> animals)
+    {
+        var localAlerts = new List<AppNotification>();
+
+        if (settings.NotifyKiddingWatch)
         {
-            // Gracefully handle when no data exists yet
+            foreach (var alert in _kiddingWatchAlerts)
+            {
+                var name = _animalMap.GetValueOrDefault(alert.DoeId)?.Name ?? "Unknown";
+                localAlerts.Add(new AppNotification
+                {
+                    Title    = $"Kidding Watch: {name}",
+                    Message  = $"Expected kidding in {alert.DaysRemaining} day{(alert.DaysRemaining == 1 ? "" : "s")}",
+                    EntityId = alert.DoeId,
+                    EntityType = "Animal"
+                });
+            }
         }
+
+        if (settings.NotifyWeaning)
+        {
+            foreach (var alert in _weaningAlerts)
+            {
+                var name = _animalMap.GetValueOrDefault(alert.DoeId)?.Name ?? "Unknown";
+                localAlerts.Add(new AppNotification
+                {
+                    Title    = $"Weaning Due: {name}",
+                    Message  = $"Kid weaning overdue since {alert.WeaningDate?.ToString("dd MMM")}",
+                    EntityId = alert.DoeId,
+                    EntityType = "Animal"
+                });
+            }
+        }
+
+        if (settings.NotifyWithdrawalExpiry)
+        {
+            try
+            {
+                var medLogs = await Db.GetAllAsync<MedicalLog>("medicalLogs");
+                foreach (var group in medLogs.GroupBy(m => m.AnimalId))
+                {
+                    var status = WithdrawalSvc.CheckWithdrawalStatus(group);
+                    if (!status.IsUnderWithdrawal) continue;
+
+                    var name = _animalMap.GetValueOrDefault(group.Key)?.Name ?? "Unknown";
+                    foreach (var w in status.ActiveWithdrawals)
+                    {
+                        localAlerts.Add(new AppNotification
+                        {
+                            Title    = $"Withdrawal Period: {name}",
+                            Message  = $"{w.Medication} — clears {w.WithdrawalEndDate:dd MMM yyyy} ({w.DaysRemaining} day{(w.DaysRemaining == 1 ? "" : "s")} left)",
+                            EntityId = group.Key,
+                            EntityType = "Animal"
+                        });
+                    }
+                }
+            }
+            catch { }
+        }
+
+        if (settings.NotifyHeatCycle && settings.EnableHeatTracking)
+        {
+            try
+            {
+                var heatRecords = await Db.GetAllAsync<HeatRecord>("heatRecords");
+                var byDoe       = heatRecords.ToLookup(h => h.AnimalId);
+                var upcoming    = HeatSvc.GetUpcomingHeats(byDoe, settings);
+
+                foreach (var pred in upcoming)
+                {
+                    var name = _animalMap.GetValueOrDefault(pred.DoeId)?.Name ?? "Unknown";
+                    localAlerts.Add(new AppNotification
+                    {
+                        Title    = $"Heat Cycle: {name}",
+                        Message  = pred.DaysUntilHeat <= 0
+                            ? $"Expected in heat now (last: {pred.LastObservedHeat:dd MMM})"
+                            : $"Expected heat in {pred.DaysUntilHeat} day{(pred.DaysUntilHeat == 1 ? "" : "s")}",
+                        EntityId = pred.DoeId,
+                        EntityType = "Animal"
+                    });
+                }
+            }
+            catch { }
+        }
+
+        await BellService.SetLocalAlertsAsync(localAlerts);
     }
 
     private void NavigateTo(string path) => Navigation.NavigateTo(path);

@@ -1,0 +1,294 @@
+.pending-page {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 1rem;
+    padding-bottom: 3rem;
+}
+
+/* ── Header refresh button ── */
+.refresh-btn {
+    background: none;
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    width: 2.2rem;
+    height: 2.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    margin-left: auto;
+}
+
+.refresh-btn:hover:not(:disabled) {
+    background: var(--bg-overlay);
+    color: var(--text-primary);
+}
+
+.refresh-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Loading ── */
+.pending-loading {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+/* ── Status banner (while syncing) ── */
+.pending-status-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+
+.pending-status-banner.syncing {
+    background: rgba(52, 152, 103, 0.12);
+    color: var(--green-bright, #2ecc71);
+}
+
+.banner-icon {
+    font-size: 1rem;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Live sync list (during active push) ── */
+.sync-live-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.sync-live-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.9rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: 10px;
+}
+
+.sli-icon {
+    font-size: 0.9rem;
+    min-width: 1rem;
+    text-align: center;
+}
+
+.sli-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.sli-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sli-meta {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.sli-error {
+    font-size: 0.7rem;
+    color: #e74c3c;
+}
+
+.sli-pending  .sli-icon { color: var(--text-muted); }
+.sli-syncing  .sli-icon { color: var(--green-bright, #2ecc71); }
+.sli-synced   .sli-icon { color: #2ecc71; }
+.sli-failed   .sli-icon { color: #e74c3c; }
+
+/* ── Empty state ── */
+.pending-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 4rem 1rem;
+    text-align: center;
+}
+
+.pending-empty-icon {
+    font-size: 2.5rem;
+    color: #2ecc71;
+    line-height: 1;
+}
+
+.pending-empty p {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.pending-empty-sub {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+/* ── Summary row ── */
+.pending-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.6rem;
+}
+
+.pending-count {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.offline-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: rgba(149, 165, 166, 0.15);
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+}
+
+/* ── Pending item list ── */
+.pending-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1.25rem;
+}
+
+.pending-item {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    transition: background 0.12s;
+}
+
+.pending-item:hover {
+    background: var(--bg-overlay);
+}
+
+.pi-entity-icon {
+    font-size: 1.2rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.pi-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.pi-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pi-meta {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.pi-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.2rem;
+    flex-shrink: 0;
+}
+
+.pi-action {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.pi-action-save {
+    background: rgba(46, 204, 113, 0.12);
+    color: #2ecc71;
+}
+
+.pi-action-delete {
+    background: rgba(231, 76, 60, 0.12);
+    color: #e74c3c;
+}
+
+.pi-time {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* ── Actions footer ── */
+.pending-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.failed-banner {
+    padding: 0.6rem 0.85rem;
+    background: rgba(231, 76, 60, 0.08);
+    border: 1px solid rgba(231, 76, 60, 0.25);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: #e74c3c;
+    font-weight: 600;
+}
+
+.btn-sync-now {
+    width: 100%;
+    background: var(--green-bright, #2ecc71);
+    color: #071510;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-family: inherit;
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+}
+
+.btn-sync-now:hover:not(:disabled) {
+    background: #27ae60;
+}
+
+.btn-sync-now:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}

@@ -178,5 +178,16 @@ window.imbuziDb = {
         });
     },
 
+    clearStore: async (storeName) => {
+        const db = await openDb();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readwrite');
+            const store = tx.objectStore(storeName);
+            const request = store.clear();
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    },
+
     isOnline: () => navigator.onLine
 };

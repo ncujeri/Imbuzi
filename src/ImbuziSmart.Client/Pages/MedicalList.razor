@@ -1,0 +1,176 @@
+@page "/medical"
+@attribute [Authorize]
+@inject NavigationManager Navigation
+@inject IndexedDbService Db
+
+<PageTitle>Medical Logs - iMbuzi Smart</PageTitle>
+
+<div class="medical-list-page">
+    <div class="page-header">
+        <button class="back-btn" @onclick='() => Navigation.NavigateTo("/")'>&#8592; Back</button>
+        <h2 class="page-title">Medical Logs</h2>
+        <button class="btn-icon-add" @onclick='() => Navigation.NavigateTo("/medical/new")' title="Add medical log">&#43;</button>
+    </div>
+
+    <div class="list-toolbar">
+        <div class="search-box">
+            <span class="search-icon">&#128269;</span>
+            <input type="search" class="search-input" placeholder="Search medication or animal&#8230;"
+                @oninput="OnSearch" value="@_search" />
+        </div>
+        <select class="filter-select" @onchange="OnAnimalFilter">
+            <option value="">All animals</option>
+            @foreach (var a in _animals)
+            {
+                <option value="@a.Id">@a.Name (@a.Tag)</option>
+            }
+        </select>
+    </div>
+
+    @if (!_loaded)
+    {
+        <div class="list-loading">Loading&#8230;</div>
+    }
+    else if (_filtered.Count == 0)
+    {
+        <div class="empty-notice">
+            <span class="empty-notice-icon">&#128138;</span>
+            @if (_records.Count == 0)
+            {
+                <p>No medical logs yet.</p>
+                <button class="btn-primary" @onclick='() => Navigation.NavigateTo("/medical/new")'>
+                    &#43; Add Medical Log
+                </button>
+            }
+            else
+            {
+                <p>No records match your search.</p>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="record-count">@_filtered.Count record@(_filtered.Count == 1 ? "" : "s")</div>
+
+        <div class="record-list">
+            @foreach (var rec in _filtered)
+            {
+                var animal = _animalMap.GetValueOrDefault(rec.AnimalId);
+                var isActive = rec.WithdrawalEndDate.HasValue && rec.WithdrawalEndDate.Value > DateTime.Today;
+                <div class="record-card">
+                    <div class="record-card-body">
+                        <div class="record-card-row">
+                            <span class="record-animal">@(animal is not null ? $"{animal.Name} ({animal.Tag})" : "Unknown animal")</span>
+                            <span class="record-date">@rec.TreatmentDate.ToString("dd MMM yyyy")</span>
+                        </div>
+                        <div class="record-med-name">@rec.Medication</div>
+                        <div class="record-meta-row">
+                            @if (!string.IsNullOrWhiteSpace(rec.Dosage))
+                            {
+                                <span class="meta-chip">@rec.Dosage</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(rec.VetName))
+                            {
+                                <span class="meta-chip">&#128084; @rec.VetName</span>
+                            }
+                            @if (isActive)
+                            {
+                                <span class="meta-chip chip-warning">&#9888; Withdrawal ends @rec.WithdrawalEndDate?.ToString("dd MMM")</span>
+                            }
+                            else if (rec.WithdrawalPeriodDays.HasValue)
+                            {
+                                <span class="meta-chip chip-cleared">&#10003; Cleared</span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(rec.Notes))
+                        {
+                            <p class="record-notes">@rec.Notes</p>
+                        }
+                    </div>
+                    <div class="record-actions">
+                        <button class="edit-btn" @onclick="() => EditRecord(rec.Id)" title="Edit">&#9998;</button>
+                        @if (_confirmDeleteId == rec.Id)
+                        {
+                            <span class="delete-confirm-label">Delete?</span>
+                            <button class="cancel-btn" @onclick="CancelDelete">No</button>
+                            <button class="confirm-delete-btn" @onclick="() => DeleteRecord(rec.Id)">Yes</button>
+                        }
+                        else
+                        {
+                            <button class="delete-btn" @onclick="() => _confirmDeleteId = rec.Id" title="Delete">&#128465;</button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<MedicalLog> _records = new();
+    private List<MedicalLog> _filtered = new();
+    private List<Animal> _animals = new();
+    private Dictionary<Guid, Animal> _animalMap = new();
+    private string _search = string.Empty;
+    private string _animalFilter = string.Empty;
+    private Guid? _confirmDeleteId;
+    private bool _loaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var animals = await Db.GetAllAsync<Animal>("animals");
+            _animals    = animals.OrderBy(a => a.Name).ToList();
+            _animalMap  = animals.ToDictionary(a => a.Id);
+            _records    = (await Db.GetAllAsync<MedicalLog>("medicalLogs"))
+                            .OrderByDescending(r => r.TreatmentDate)
+                            .ToList();
+            ApplyFilter();
+        }
+        catch { }
+        finally { _loaded = true; }
+    }
+
+    private void OnSearch(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? string.Empty;
+        ApplyFilter();
+    }
+
+    private void OnAnimalFilter(ChangeEventArgs e)
+    {
+        _animalFilter = e.Value?.ToString() ?? string.Empty;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        var q = _search.Trim().ToLower();
+        _filtered = _records.Where(r =>
+        {
+            if (!string.IsNullOrEmpty(_animalFilter) &&
+                !r.AnimalId.ToString().Equals(_animalFilter, StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (string.IsNullOrEmpty(q)) return true;
+            var animal = _animalMap.GetValueOrDefault(r.AnimalId);
+            return r.Medication.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || (animal?.Name?.Contains(q, StringComparison.OrdinalIgnoreCase) == true)
+                || (animal?.Tag?.Contains(q, StringComparison.OrdinalIgnoreCase) == true)
+                || (r.VetName?.Contains(q, StringComparison.OrdinalIgnoreCase) == true);
+        }).ToList();
+    }
+
+    private void EditRecord(Guid id) =>
+        Navigation.NavigateTo($"/medical/{id}/edit");
+
+    private async Task DeleteRecord(Guid id)
+    {
+        await Db.DeleteAsync("medicalLogs", id);
+        _records.RemoveAll(r => r.Id == id);
+        _confirmDeleteId = null;
+        ApplyFilter();
+    }
+
+    private void CancelDelete() => _confirmDeleteId = null;
+}

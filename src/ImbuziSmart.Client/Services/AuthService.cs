@@ -66,6 +66,58 @@ public class AuthService
         }
     }
 
+    /// <summary>Invites a new employee (Manager or Viewer) to the current tenant.</summary>
+    public async Task<(bool Success, string? Error)> InviteEmployeeAsync(InviteUserRequest request)
+    {
+        try
+        {
+            var response = await _http.PostAsJsonAsync("api/auth/invite", request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadFromJsonAsync<ErrorDto>();
+                return (false, err?.Error ?? "Failed to add employee.");
+            }
+            return (true, null);
+        }
+        catch (HttpRequestException)
+        {
+            return (false, "Cannot reach server. Check your connection.");
+        }
+    }
+
+    /// <summary>Returns all active team members for the current tenant.</summary>
+    public async Task<(List<TeamMemberDto>? Members, string? Error)> GetTeamAsync()
+    {
+        try
+        {
+            var members = await _http.GetFromJsonAsync<List<TeamMemberDto>>("api/auth/team");
+            return (members ?? new(), null);
+        }
+        catch (HttpRequestException)
+        {
+            return (null, "Cannot reach server. Check your connection.");
+        }
+    }
+
+    /// <summary>Deactivates an employee from the current tenant.</summary>
+    public async Task<(bool Success, string? Error)> RemoveEmployeeAsync(Guid userId)
+    {
+        try
+        {
+            var response = await _http.DeleteAsync($"api/auth/team/{userId}");
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadFromJsonAsync<ErrorDto>();
+                return (false, err?.Error ?? "Failed to remove employee.");
+            }
+            return (true, null);
+        }
+        catch (HttpRequestException)
+        {
+            return (false, "Cannot reach server. Check your connection.");
+        }
+    }
+
     public async Task LogoutAsync() => await _authState.ClearTokenAsync();
 
     public async Task<string?> GetTokenAsync() => await _authState.GetTokenAsync();
@@ -75,3 +127,14 @@ public class AuthService
     private record ErrorDto(string? Error);
     private record ErrorsDto(IEnumerable<string>? Errors);
 }
+
+/// <summary>Team member summary returned from GET /api/auth/team.</summary>
+public record TeamMemberDto(
+    Guid     UserId,
+    string   Email,
+    string   FullName,
+    string   FirstName,
+    string   LastName,
+    string   Role,
+    DateTime CreatedAt
+);

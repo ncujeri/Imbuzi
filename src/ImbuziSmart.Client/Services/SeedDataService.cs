@@ -1,3 +1,4 @@
+using ImbuziSmart.Client.Auth;
 using ImbuziSmart.Shared.Entities;
 using ImbuziSmart.Shared.Enums;
 
@@ -5,11 +6,14 @@ namespace ImbuziSmart.Client.Services;
 
 /// <summary>
 /// Seeds IndexedDB with realistic demo data for a South African goat farm.
-/// Only runs on first launch (checks for existing data).
+/// Skipped entirely when a user is already authenticated — real data is pulled
+/// from the server by SyncService.PullFromServerAsync() instead.
+/// Only runs on first launch for unauthenticated (demo) sessions.
 /// </summary>
 public class SeedDataService
 {
-    private readonly IndexedDbService _db;
+    private readonly IndexedDbService       _db;
+    private readonly ImbuziAuthStateProvider _auth;
 
     // Fixed demo tenant
     public static readonly Guid DemoTenantId = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
@@ -28,13 +32,20 @@ public class SeedDataService
     private static readonly Guid KidLungileId = Guid.Parse("30000000-0000-0000-0000-000000000004");
     private static readonly Guid SoldDoeLesediId = Guid.Parse("40000000-0000-0000-0000-000000000001");
 
-    public SeedDataService(IndexedDbService db)
+    public SeedDataService(IndexedDbService db, ImbuziAuthStateProvider auth)
     {
-        _db = db;
+        _db  = db;
+        _auth = auth;
     }
 
     public async Task SeedIfEmptyAsync()
     {
+        // If a user is already logged in, skip demo seeding entirely.
+        // Their real data will be pulled from the server via SyncService.PullFromServerAsync().
+        var token = await _auth.GetTokenAsync();
+        if (!string.IsNullOrEmpty(token))
+            return;
+
         var existing = await _db.GetAllAsync<Animal>("animals");
         if (existing.Count > 0)
             return; // Already has data

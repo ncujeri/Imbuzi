@@ -75,7 +75,7 @@
             <div class="report-detail-row">
                 <span class="report-detail-label">Sale Price</span>
                 <span class="report-detail-value sale-price-value">
-                    R @(_animal.SalePrice?.ToString("N2") ?? "—")
+                    @_currencySymbol @(_animal.SalePrice?.ToString("N2") ?? "—")
                 </span>
             </div>
             <div class="report-detail-row">
@@ -128,7 +128,7 @@
                             <span class="cost-cat-label">
                                 @LogCost.CategoryEmoji(cat) @cat
                             </span>
-                            <span class="cost-cat-total">R @catTotal.ToString("N2")</span>
+                            <span class="cost-cat-total">@_currencySymbol @catTotal.ToString("N2")</span>
                         </div>
                         <div class="breakdown-bar-wrap">
                             <div class="breakdown-bar" style="width:@pct.ToString("0.0")%"></div>
@@ -141,7 +141,7 @@
                                 <div class="cost-entry-row">
                                     <span class="cost-entry-date">@entry.Date.ToString("dd MMM yyyy")</span>
                                     <span class="cost-entry-desc">@(entry.Description ?? cat.ToString())</span>
-                                    <span class="cost-entry-amount">R @entry.Amount.ToString("N2")</span>
+                                    <span class="cost-entry-amount">@_currencySymbol @entry.Amount.ToString("N2")</span>
                                 </div>
                             }
                         </div>
@@ -151,7 +151,7 @@
 
             <div class="cost-total-row">
                 <span>Total Direct Costs</span>
-                <span class="cost-total-amount">R @_totalCosts.ToString("N2")</span>
+                <span class="cost-total-amount">@_currencySymbol @_totalCosts.ToString("N2")</span>
             </div>
 
             @if (_unallocatedCount > 0)
@@ -170,11 +170,11 @@
 
             <div class="pnl-row">
                 <span class="pnl-label">Sale Price</span>
-                <span class="pnl-value">R @(_salePrice.ToString("N2"))</span>
+                <span class="pnl-value">@_currencySymbol @(_salePrice.ToString("N2"))</span>
             </div>
             <div class="pnl-row">
                 <span class="pnl-label">Total Costs</span>
-                <span class="pnl-value pnl-cost">&#8722; R @_totalCosts.ToString("N2")</span>
+                <span class="pnl-value pnl-cost">&#8722; @_currencySymbol @_totalCosts.ToString("N2")</span>
             </div>
 
             <div class="pnl-divider"></div>
@@ -182,7 +182,7 @@
             <div class="pnl-row pnl-net-row">
                 <span class="pnl-net-label">Net @(_netPnl >= 0 ? "Profit" : "Loss")</span>
                 <span class="pnl-net-value @(_netPnl >= 0 ? "pnl-profit" : "pnl-loss")">
-                    @(_netPnl >= 0 ? "+" : "")R @_netPnl.ToString("N2")
+                    @(_netPnl >= 0 ? "+" : "")@_currencySymbol @_netPnl.ToString("N2")
                 </span>
             </div>
 
@@ -210,11 +210,20 @@
     private decimal _salePrice;
     private decimal _netPnl;
     private bool _loaded;
+    private string _currencySymbol = "R";
+
+    private static string ToCurrencySymbol(string code) => code switch
+    {
+        "USD" => "$", "EUR" => "€", "GBP" => "£", _ => "R"
+    };
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            var settings = (await Db.GetAllAsync<FarmSettings>("farmSettings")).FirstOrDefault();
+            if (settings is not null) _currencySymbol = ToCurrencySymbol(settings.Currency);
+
             _animal = await Db.GetAsync<Animal>("animals", AnimalId);
 
             if (_animal?.Status == AnimalStatus.Sold)

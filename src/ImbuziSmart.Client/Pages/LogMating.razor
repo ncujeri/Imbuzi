@@ -1,16 +1,18 @@
 @page "/mating/new"
+@page "/mating/{Id:guid}/edit"
 @attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @inject NavigationManager Navigation
 @inject IndexedDbService Db
 @inject CurrentUserService CurrentUser
+@inject InbreedingCheckService InbreedingSvc
 
-<PageTitle>Record Mating - iMbuzi Smart</PageTitle>
+<PageTitle>@(_isEdit ? "Edit Mating Record" : "Record Mating") - iMbuzi Smart</PageTitle>
 
 <div class="log-mating-page">
     <div class="page-header">
         <button class="back-btn" @onclick="GoBack">&#8592; Back</button>
-        <h2 class="page-title">Record Mating</h2>
+        <h2 class="page-title">@(_isEdit ? "Edit Mating Record" : "Record Mating")</h2>
     </div>
 
     @if (_loaded && (_bucks.Count == 0 || _does.Count == 0))
@@ -116,6 +118,15 @@
                     <InputTextArea id="notes" @bind-Value="_form.Notes" class="form-textarea" rows="3"
                         placeholder="e.g. Natural mating observed, pen mating, AI procedure..." />
                 </div>
+
+                @if (_isEdit)
+                {
+                    <div class="form-group">
+                        <label for="actualKidding">Actual Kidding Date</label>
+                        <InputDate id="actualKidding" @bind-Value="_form.ActualKiddingDate" class="form-input" />
+                        <span class="field-hint">Leave blank if not yet kidded</span>
+                    </div>
+                }
             </div>
 
             <!-- Gestation prediction -->
@@ -157,7 +168,7 @@
                 <button type="button" class="btn-secondary" @onclick="GoBack"
                     disabled="@_isSaving">Cancel</button>
                 <button type="submit" class="btn-primary" disabled="@_isSaving">
-                    @(_isSaving ? "Saving\u2026" : "\uD83E\uDD1D Save Mating")
+                    @(_isSaving ? "Saving\u2026" : _isEdit ? "\uD83E\uDD1D Update Mating" : "\uD83E\uDD1D Save Mating")
                 </button>
             </div>
         </EditForm>
@@ -208,6 +219,8 @@
 
 @code {
 
+    [Parameter] public Guid Id { get; set; }
+
     private MatingFormModel _form = new();
     private List<Animal> _bucks = new();
     private List<Animal> _does = new();
@@ -217,6 +230,8 @@
     private List<MatingRecord> _recentMatings = new();
     private bool _isSaving;
     private bool _loaded;
+    private bool _isEdit;
+    private DateTime _editCreatedAt;
     private string _errorMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
@@ -232,6 +247,24 @@
                 .Where(a => a.Sex == Sex.Female && a.Status == AnimalStatus.Active)
                 .OrderBy(a => a.Name)
                 .ToList();
+
+            if (Id != Guid.Empty)
+            {
+                _isEdit = true;
+                var existing = await Db.GetAsync<MatingRecord>("matingRecords", Id);
+                if (existing is not null)
+                {
+                    _editCreatedAt           = existing.CreatedAt;
+                    _form.BuckId             = existing.BuckId.ToString();
+                    _form.DoeId              = existing.DoeId.ToString();
+                    _form.MatingDate         = existing.MatingDate;
+                    _form.ActualKiddingDate  = existing.ActualKiddingDate;
+                    _form.Notes              = existing.Notes;
+                    _selectedBuck            = _bucks.FirstOrDefault(b => b.Id == existing.BuckId);
+                    _selectedDoe             = _does.FirstOrDefault(d => d.Id == existing.DoeId);
+                    await LoadMatingHistoryAsync(existing.DoeId);
+                }
+            }
         }
         catch { }
         finally { _loaded = true; }
@@ -279,20 +312,37 @@
 
         try
         {
+            var settings = (await Db.GetAllAsync<FarmSettings>("farmSettings")).FirstOrDefault() ?? new FarmSettings();
+            var buck = Guid.TryParse(_form.BuckId, out var bId) ? _bucks.FirstOrDefault(b => b.Id == bId) : null;
+            var doe  = Guid.TryParse(_form.DoeId,  out var dId) ? _does.FirstOrDefault(d => d.Id == dId)  : null;
+
+            if (buck is not null && doe is not null)
+            {
+                var check = InbreedingSvc.CheckMatingAllowed(buck, doe, settings);
+                if (!check.IsAllowed)
+                {
+                    _errorMessage = $"Inbreeding risk: {check.Reason}";
+                    _isSaving = false;
+                    return;
+                }
+            }
+
             var tenantId = await CurrentUser.GetTenantIdAsync();
             var record = new MatingRecord
             {
-                Id = Guid.NewGuid(),
-                TenantId = tenantId,
-                BuckId = Guid.Parse(_form.BuckId),
-                DoeId = Guid.Parse(_form.DoeId),
-                MatingDate = _form.MatingDate,
-                Notes = string.IsNullOrWhiteSpace(_form.Notes) ? null : _form.Notes.Trim(),
-                CreatedAt = DateTime.UtcNow
+                Id                 = _isEdit ? Id : Guid.NewGuid(),
+                TenantId           = tenantId,
+                BuckId             = Guid.Parse(_form.BuckId),
+                DoeId              = Guid.Parse(_form.DoeId),
+                MatingDate         = _form.MatingDate,
+                ActualKiddingDate  = _form.ActualKiddingDate,
+                Notes              = string.IsNullOrWhiteSpace(_form.Notes) ? null : _form.Notes.Trim(),
+                CreatedAt          = _isEdit ? _editCreatedAt : DateTime.UtcNow,
+                UpdatedAt          = _isEdit ? DateTime.UtcNow : null
             };
 
             await Db.PutAsync("matingRecords", record);
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("/mating");
         }
         catch (Exception ex)
         {
@@ -301,7 +351,7 @@
         }
     }
 
-    private void GoBack() => Navigation.NavigateTo("/");
+    private void GoBack() => Navigation.NavigateTo("/mating");
 
     private class MatingFormModel
     {
@@ -313,6 +363,8 @@
 
         [Required(ErrorMessage = "Mating date is required")]
         public DateTime MatingDate { get; set; } = DateTime.Today;
+
+        public DateTime? ActualKiddingDate { get; set; }
 
         public string? Notes { get; set; }
     }
